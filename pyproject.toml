@@ -39,7 +39,9 @@ dev = [
   "flake8-length",
   "pytest",
   "python-box",
+  "requests",
   "tox",
+  "toml",
   "pyngrok",
   "flask"
 ]

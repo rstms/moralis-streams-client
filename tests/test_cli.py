@@ -44,8 +44,8 @@ def run():
 
 def test_cli(run):
     """Test the CLI."""
-    result = run([], expect_exception=RuntimeError)
-    assert "moralis_streams_client/cli.py" in str(result.exception)
+    result = run([])
+    assert "Usage:" in result.output
 
 
 def test_help(run):

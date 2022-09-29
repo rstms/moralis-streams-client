@@ -63,13 +63,13 @@ def output(result):
             status_code=result.status_code,
             headers=dict(result.headers),
             content=f"{result.content}",
-            parsed=result.parsed
+            parsed=result.parsed,
         )
     elif result is None:
         result = {}
     elif isinstance(result, dict):
         pass
-    elif hasattr(result, 'to_dict'):
+    elif hasattr(result, "to_dict"):
         result = result.to_dict()
     else:
         raise TypeError(f"unexpected result type {type(result)}: {result}")
@@ -93,7 +93,12 @@ def get_settings(ctx):
 
 @cli.command
 @click.pass_context
-@click.argument("region", type=click.option([name for name, member in SettingsRegion.__members__.items()]))
+@click.argument(
+    "region",
+    type=click.option(
+        [name for name, member in SettingsRegion.__members__.items()]
+    ),
+)
 def set_settings(ctx, region):
     """set settings"""
     settings = SettingsTypesSettingsModel.from_dict({"region": region})
@@ -108,7 +113,13 @@ def set_settings(ctx, region):
     multiple=True,
     help='The ids of the chains for this stream in hex Ex: ["0x1","0x38"]',
 )
-@click.option("-t", "--stream-type", type=click.Choice([name for name,member in StreamsType.__members__.items()]))
+@click.option(
+    "-t",
+    "--stream-type",
+    type=click.Choice(
+        [name for name, member in StreamsType.__members__.items()]
+    ),
+)
 @click.option(
     "-T",
     "--topic",
@@ -281,7 +292,13 @@ def get_streams(ctx, stream_id, limit, cursor):
     multiple=True,
     help='The ids of the chains for this stream in hex Ex: ["0x1","0x38"]',
 )
-@click.option("-t", "--stream-type", type=click.Choice([name for name,member in StreamsType.__members__.items()]))
+@click.option(
+    "-t",
+    "--stream-type",
+    type=click.Choice(
+        [name for name, member in StreamsType.__members__.items()]
+    ),
+)
 @click.option(
     "-T",
     "--topic",
@@ -362,7 +379,12 @@ def update_stream(
 
 @cli.command
 @click.argument("stream-id", type=str)
-@click.argument("status", type=click.Choice([name for name,member in StreamsStatus.__members__.items()]))
+@click.argument(
+    "status",
+    type=click.Choice(
+        [name for name, member in StreamsStatus.__members__.items()]
+    ),
+)
 @click.pass_context
 def update_stream_status(ctx, stream_id, status):
     """update the status of a stream to active, paused, or error"""
@@ -374,4 +396,4 @@ def update_stream_status(ctx, stream_id, status):
 
 
 if __name__ == "__main__":
-    sys.exit(msc())  # pragma: no cover
+    sys.exit(cli())  # pragma: no cover
