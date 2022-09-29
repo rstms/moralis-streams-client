@@ -39,7 +39,9 @@ dev = [
   "flake8-length",
   "pytest",
   "python-box",
-  "tox"
+  "tox",
+  "pyngrok",
+  "flask"
 ]
 docs = [
   "m2r2",
@@ -60,4 +62,4 @@ collect_ignore = ['setup.py']
 
 
 [project.scripts]
-msc = "moralis_streams_client:msc"
+msc = "moralis_streams_client:cli"
