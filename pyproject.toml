@@ -21,7 +21,9 @@ classifiers = [
 dynamic = ["version", "description"] 
 
 dependencies = [
-  "click"
+  "click",
+  "httpx",
+  "attrs"
 ]
 
 [tool.flit.module]
@@ -58,4 +60,4 @@ collect_ignore = ['setup.py']
 
 
 [project.scripts]
-moralis-streams-client = "moralis_streams_client:cli"
+msc = "moralis_streams_client:msc"
