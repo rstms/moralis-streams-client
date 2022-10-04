@@ -42,7 +42,6 @@ header = f"{__name__.split('.')[0]} v{__version__} {__timestamp__}"
     "-k",
     "--key",
     type=str,
-    required=True,
     envvar="MORALIS_API_KEY",
     show_envvar=True,
     default=None,
@@ -53,8 +52,57 @@ header = f"{__name__.split('.')[0]} v{__version__} {__timestamp__}"
 def cli(ctx, debug, url, key, verbose):
     """Moralis Streams API CLI"""
     ctx.obj = dict(ehandler=ExceptionHandler(debug))
-    ctx.obj["api"] = connect(url=url, key=key, detailed=verbose)
     ctx.obj["debug"] = debug
+    if ctx.invoked_subcommand != "webhook-server":
+        ctx.obj["api"] = connect(url=url, key=key, detailed=verbose)
+
+
+@cli.command()
+@click.option(
+    "-h",
+    "--addr",
+    type=str,
+    envvar="MSC_WEBHOOK_ADDR",
+    default="127.0.0.1",
+    help="IP addr",
+)
+@click.option(
+    "-p",
+    "--port",
+    type=int,
+    envvar="MSC_WEBHOOK_PORT",
+    default=8888,
+    help="listen port",
+)
+@click.option(
+    "-w",
+    "--workers",
+    type=int,
+    default=1,
+    help="number of worker threads/processes",
+)
+@click.option("-n", "--ngrok", is_flag=True, help="enable ngrok tunnel")
+@click.option(
+    "--ngrok-auth-token",
+    type=str,
+    envvar="NGROK_AUTH_TOKEN",
+    show_envvar=True,
+    help="ngrok auth token",
+)
+@click.pass_context
+def webhook_server(ctx, addr, port, workers, ngrok, ngrok_auth_token):
+    """webhook endpoint server"""
+
+    from .server import run
+
+    if ctx.obj["debug"]:
+        level = "debug"
+    else:
+        level = "info"
+
+    sys.exit(
+        run(addr, port, workers, level, tunnel=ngrok, token=ngrok_auth_token)
+    )
 
 
 def output(result):
@@ -78,7 +126,7 @@ def output(result):
 
 @cli.command
 @click.pass_context
-def stats(ctx):
+def get_stats(ctx):
     """output beta statistics"""
     api = ctx.obj["api"]
     output(api.get_stats())

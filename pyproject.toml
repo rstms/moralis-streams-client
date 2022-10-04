@@ -43,6 +43,7 @@ dev = [
   "tox",
   "toml",
   "pyngrok",
+  "gunicorn",
   "flask"
 ]
 docs = [

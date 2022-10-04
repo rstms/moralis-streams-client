@@ -1,15 +1,28 @@
 # common test fixtures
 
+import json
+import logging
 import multiprocessing as mp
+import os
 import queue
+from subprocess import check_call
 from time import sleep
 
 import attr
-import pyngrok
 import pytest
+import requests
 
+from moralis_streams_client import server
+from moralis_streams_client.tunnel import Tunnel
+
+SERVER_ADDR = "127.0.0.1"
 SERVER_PORT = 8888
 QSIZE = 1024
+
+
+@pytest.fixture
+def server_addr():
+    return SERVER_ADDR
 
 
 @pytest.fixture
@@ -20,22 +33,22 @@ def server_port():
 @attr.s(auto_attribs=True)
 class Callback:
 
-    queue = mp.Queue(QSIZE)
+    q = mp.Queue(QSIZE)
 
     def put(self, item):
-        self.queue.put(item, False)
+        self.q.put(item, False)
         while self.empty() is True or self.size() < 1:
             sleep(0.001)
 
     def get(self, block=True, timeout=None):
-        return self.queue.get(block, timeout)
+        return self.q.get(block, timeout)
 
     def list(self, block=True, timeout=None, sentinel=None, count=None):
         items = []
-        # print(f"list_enter {self} q_size={self.queue.qsize()} q_empty={self.queue.empty()} items={len(items)}")
+        # print(f"list_enter {self} q_size={self.q.qsize()} q_empty={self.q.empty()} items={len(items)}")
         while True:
             try:
-                item = self.queue.get(block, timeout)
+                item = self.q.get(block, timeout)
             except queue.Empty:
                 break
             items.append(item)
@@ -53,10 +66,10 @@ class Callback:
             pass
 
     def empty(self):
-        return self.queue.empty()
+        return self.q.empty()
 
     def size(self):
-        return self.queue.qsize()
+        return self.q.qsize()
 
 
 @pytest.fixture()
@@ -70,37 +83,48 @@ def callbacks():
         # print(f"callbacks: releasing {cb} {cb.queue}")
 
 
-def webhooker(queue, port):
-    import sys
-
-    from flask import Flask
-
-    print(f"webhooker startup: {queue=} {port=}")
-
-    app = Flask(__name__)
-
-    @app.route("/hello")
-    def hello_world():
-        print("route: /hello")
-        return "Hello, World!\n"
-
-    @app.route("/shutdown")
-    def shutdown():
-        print("shutdown requested")
-        sys.exit(0)
-
-    print("calling webhooker run...")
-    app.run(debug=True, port=port)
-    print("webhooker run returned")
-
-
 @pytest.fixture(scope="session", autouse=True)
-def webhook_server(k):
+def webhook_server():
     try:
-        print("webhook_server starting webhooker...")
-        p = mp.Process(target=webhooker, args=(Callback.queue, SERVER_PORT))
+        print("starting webhook_server...")
+        p = mp.Process(
+            target=server.run,
+            kwargs={"addr": SERVER_ADDR, "port": SERVER_PORT, "tunnel": True},
+        )
         p.start()
+        ret = check_call(["wait-for-it", "-s", f"{SERVER_ADDR}:{SERVER_PORT}"])
+        assert ret == 0, "timeout waiting for webhook_server listen port"
+
         yield p
     finally:
-        print("webhook_server killing webhooker...")
-        p.kill()
+        # response = requests.get(f"http://{SERVER_ADDR}:{SERVER_PORT}/shutdown")
+        # print(f"{response}")
+        p.terminate()
+        p.join()
+        check_call(['pkill', 'ngrok'])
+    print("webhook_server exited")
+
+
+@pytest.fixture
+def dump():
+    def _dump(obj):
+        logging.info(json.dumps(obj, indent=2))
+
+    return _dump
+
+
+@pytest.fixture
+def webhook(server_addr, server_port):
+    def _webhook(path, params=None, json=None):
+        url = f"http://{server_addr}:{server_port}/{path}"
+        if json:
+            response = requests.post(url, data=json)
+        else:
+            response = requests.get(url, params=params)
+        assert response.ok
+        result = response.json()
+        assert isinstance(result, dict)
+        assert "result" in result
+        return result
+
+    return _webhook

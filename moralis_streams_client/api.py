@@ -1,6 +1,6 @@
 # API object
 
-from typing import Callable, Union
+from typing import Callable, List, Union
 
 import attr
 
@@ -13,6 +13,8 @@ from .streams_api_client import (
     Response,
     SettingsRegion,
     SettingsTypesSettingsModel,
+    StreamsAbi,
+    StreamsFilter,
     StreamsStatus,
     StreamsType,
     StreamsTypesStreamsModelCreate,
@@ -94,15 +96,20 @@ def copy_doc(copy_func: Callable) -> Callable:
 class API:
     """API endpoints"""
 
-    detailed: bool
     client: AuthenticatedClient
+    detailed: bool
+    format_dict: bool
 
     def _call(self, parsed, detailed, **kwargs):
         kwargs["client"] = self.client
         if self.detailed:
             return detailed(**kwargs)
         else:
-            return parsed(**kwargs)
+            ret = parsed(**kwargs)
+            if self.format_dict and hasattr(ret, "to_dict"):
+                return ret.to_dict()
+            else:
+                return ret
 
     async def _async_call(self, parsed, detailed, **kwargs):
         kwargs["client"] = self.client
@@ -188,9 +195,46 @@ class API:
         )
 
     @copy_doc(_sp_create_stream)
-    def create_stream(self, *, json_body: StreamsTypesStreamsModelCreate):
+    def create_stream(
+        self,
+        *,
+        webhook_url: str,
+        description: str,
+        tag: str,
+        chain_ids: Union[str, List[str]],
+        stream_type: StreamsType,
+        address: str,
+        topic: str = None,
+        include_native_txs: bool = False,
+        abi: dict = None,
+        filter_: StreamsFilter = None,
+    ):
+        if isinstance(chain_ids, str):
+            chain_ids = [chain_ids]
+        if stream_type == StreamsType.CONTRACT:
+            token_address = address
+            address = None
+        elif stream_type == StreamsType.WALLET:
+            token_address = None
+        else:
+            raise ValueError(f"unexpected: {stream_type=}")
+
         return self._call(
-            _sp_create_stream, _sd_create_stream, json_body=json_body
+            _sp_create_stream,
+            _sd_create_stream,
+            json_body=StreamsTypesStreamsModelCreate(
+                webhook_url=webhook_url,
+                description=description,
+                tag=tag,
+                chain_ids=chain_ids,
+                type=stream_type,
+                token_address=token_address,
+                topic0=topic,
+                include_native_txs=include_native_txs,
+                abi=abi,
+                filter_=filter_,
+                address=address,
+            ),
         )
 
     @copy_doc(_sp_create_stream)
@@ -325,9 +369,13 @@ class API:
 
 
 def connect(
-    *, key: str, url: str = DEFAULT_API_URL, detailed: bool = False
+    *,
+    key: str,
+    url: str = DEFAULT_API_URL,
+    detailed: bool = False,
+    format_dict=True,
 ) -> API:
     client = AuthenticatedClient(
         token=key, base_url=url, auth_header_name="x-api-key", prefix=None
     )
-    return API(client=client, detailed=detailed)
+    return API(client=client, detailed=detailed, format_dict=format_dict)

@@ -1,0 +1,13 @@
+black
+bump2version
+coverage
+isort
+flake8
+flake8-length
+pytest
+python-box
+requests
+tox
+toml
+pyngrok
+flask
