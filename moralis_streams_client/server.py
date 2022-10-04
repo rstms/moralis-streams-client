@@ -19,7 +19,7 @@ app.config.update(tunnel_url=None)
 @app.route("/hello")
 def hello():
     print(f"/hello: {request}")
-    return dict(result={"message": 'Hello, World!'}), 200
+    return dict(result={"message": "Hello, World!"}), 200
 
 
 @app.route("/tunnel")

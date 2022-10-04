@@ -101,7 +101,7 @@ def webhook_server():
         # print(f"{response}")
         p.terminate()
         p.join()
-        check_call(['pkill', 'ngrok'])
+        check_call(["pkill", "ngrok"])
     print("webhook_server exited")
 
 

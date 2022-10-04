@@ -1,10 +1,11 @@
 # ngrok tunnel
 
+import atexit
 import logging
 import os
-import atexit
 
 from pyngrok import ngrok
+
 
 class Tunnel:
 
