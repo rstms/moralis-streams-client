@@ -67,14 +67,9 @@ def test_webhook_queue(webhook, dump):
         dump(event)
 
 
-def test_webhook_tunnel(webhook, dump):
+def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
     ret = webhook("clear")
-    ret = webhook("tunnel")
-    assert isinstance(ret, dict)
-    tunnel = ret["result"]
-    assert isinstance(tunnel, dict)
-    assert len(tunnel.keys()) == 1
-    url = list(tunnel.values())[0] + "/contract/event"
+    url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
     response = requests.post(url, data=payload)

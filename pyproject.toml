@@ -21,9 +21,13 @@ classifiers = [
 dynamic = ["version", "description"] 
 
 dependencies = [
+  "attrs",
   "click",
+  "flask",
+  "gunicorn",
   "httpx",
-  "attrs"
+  "pyngrok",
+  "toml"
 ]
 
 [tool.flit.module]
@@ -31,20 +35,23 @@ name = "moralis_streams_client"
 
 [project.optional-dependencies]
 dev = [
+  "eth-ape",
+  "ape-etherscan",
+  "ape-alchemy",
+  "backoff",
   "black",
   "bump2version",
   "coverage",
-  "isort",
   "flake8",
   "flake8-length",
+  "isort",
+  "MoralisSDK",
   "pytest",
+  "pytest-datadir",
   "python-box",
+  "ratelimit",
   "requests",
-  "tox",
-  "toml",
-  "pyngrok",
-  "gunicorn",
-  "flask"
+  "tox"
 ]
 docs = [
   "m2r2",

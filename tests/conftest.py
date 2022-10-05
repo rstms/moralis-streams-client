@@ -128,3 +128,14 @@ def webhook(server_addr, server_port):
         return result
 
     return _webhook
+
+
+@pytest.fixture
+def webhook_tunnel_url(webhook):
+    ret = webhook("tunnel")
+    assert isinstance(ret, dict)
+    tunnel = ret["result"]
+    assert isinstance(tunnel, dict)
+    assert len(tunnel.keys()) == 1
+    url = list(tunnel.values())[0]
+    return url

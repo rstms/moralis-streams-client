@@ -10,4 +10,5 @@ requests
 tox
 toml
 pyngrok
+gunicorn
 flask
