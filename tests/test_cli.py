@@ -40,8 +40,9 @@ def run():
         # kwargs["env"] = env
         result = runner.invoke(cli, cmd, **kwargs)
         if result.exception:
-            breakpoint()
-            if not isinstance(result.exception, expect_exception):
+            if expect_exception is None or isinstance(
+                result.exception, expect_exception
+            ):
                 print_exception(result.exception)
                 breakpoint()
                 pass

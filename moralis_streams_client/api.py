@@ -1,381 +1,167 @@
-# API object
+# streams api client wrapper
 
-from typing import Callable, List, Union
+import json
+from typing import List
 
-import attr
+import moralis_streams_api as streams
 
-from .streams_api_client import (
-    UNSET,
-    AddressesTypesAddressesAdd,
-    AddressesTypesAddressesRemove,
-    AuthenticatedClient,
-    PartialStreamsTypesStreamsModelCreate,
-    Response,
-    SettingsRegion,
-    SettingsTypesSettingsModel,
-    StreamsAbi,
-    StreamsFilter,
-    StreamsStatus,
-    StreamsType,
-    StreamsTypesStreamsModelCreate,
-    StreamsTypesStreamsStatusUpdate,
-    Unset,
-    _ad_add_address_to_stream,
-    _ad_create_stream,
-    _ad_delete_address_from_stream,
-    _ad_delete_stream,
-    _ad_get_addresses,
-    _ad_get_history,
-    _ad_get_settings,
-    _ad_get_stats,
-    _ad_get_stream,
-    _ad_get_streams,
-    _ad_replay_history,
-    _ad_set_settings,
-    _ad_update_stream,
-    _ad_update_stream_status,
-    _ap_add_address_to_stream,
-    _ap_create_stream,
-    _ap_delete_address_from_stream,
-    _ap_delete_stream,
-    _ap_get_addresses,
-    _ap_get_history,
-    _ap_get_settings,
-    _ap_get_stats,
-    _ap_get_stream,
-    _ap_get_streams,
-    _ap_replay_history,
-    _ap_set_settings,
-    _ap_update_stream,
-    _ap_update_stream_status,
-    _sd_add_address_to_stream,
-    _sd_create_stream,
-    _sd_delete_address_from_stream,
-    _sd_delete_stream,
-    _sd_get_addresses,
-    _sd_get_history,
-    _sd_get_settings,
-    _sd_get_stats,
-    _sd_get_stream,
-    _sd_get_streams,
-    _sd_replay_history,
-    _sd_set_settings,
-    _sd_update_stream,
-    _sd_update_stream_status,
-    _sp_add_address_to_stream,
-    _sp_create_stream,
-    _sp_delete_address_from_stream,
-    _sp_delete_stream,
-    _sp_get_addresses,
-    _sp_get_history,
-    _sp_get_settings,
-    _sp_get_stats,
-    _sp_get_stream,
-    _sp_get_streams,
-    _sp_replay_history,
-    _sp_set_settings,
-    _sp_update_stream,
-    _sp_update_stream_status,
-)
-
-DEFAULT_API_URL = "https://api.moralis-streams.com"
+from moralis_streams_client.defaults import MORALIS_STREAMS_URL
 
 
-# decorator to copy docstrings from api functions to class methods
-def copy_doc(copy_func: Callable) -> Callable:
-    """Use Example: copy_doc(self.copy_func)(self.func) or used as deco"""
+class MoralisStreamsApi:
+    def __init__(self, api_key, url=MORALIS_STREAMS_URL, verbose=False):
+        if not api_key:
+            raise ValueError(f"{api_key=}")
+        config = streams.Configuration()
+        config.api_key["x-api-key"] = api_key
+        config.host = url
+        self.client = streams.ApiClient(config)
+        self.verbose = verbose
 
-    def wrapper(func: Callable) -> Callable:
-        func.__doc__ = copy_func.__doc__
-        return func
+    def _parse_advanced_options(self, advanced_options):
+        options = []
+        for option in advanced_options:
+            odict = json.loads(option)
+            options.append(
+                streams.AdvancedOptions(
+                    topic0=odict["topic0"],
+                    filter=odict["filter"],
+                    include_native_txs=odict["include_native_txs"],
+                )
+            )
+        return options
 
-    return wrapper
+    def get_stats(self) -> streams.StatstypesStatsModel:
+        return streams.BetaApi(self.client).get_stats()
 
+    def get_settings(self) -> streams.SettingsTypesSettingsModel:
+        return streams.ProjectApi(self.client).get_settings()
 
-@attr.s(auto_attribs=True)
-class API:
-    """API endpoints"""
+    def set_settings(self, region: str) -> None:
+        settings = streams.SettingsTypesSettingsModel(region=region)
+        return streams.ProjectApi(self.client).set_settings(settings=settings)
 
-    client: AuthenticatedClient
-    detailed: bool
-    format_dict: bool
-
-    def _call(self, parsed, detailed, **kwargs):
-        kwargs["client"] = self.client
-        if self.detailed:
-            return detailed(**kwargs)
-        else:
-            ret = parsed(**kwargs)
-            if self.format_dict and hasattr(ret, "to_dict"):
-                return ret.to_dict()
-            else:
-                return ret
-
-    async def _async_call(self, parsed, detailed, **kwargs):
-        kwargs["client"] = self.client
-        if self.detailed:
-            return await detailed(**kwargs)
-        else:
-            return await parsed(**kwargs)
-
-    @copy_doc(_sp_get_stats)
-    def get_stats(self):
-        return self._call(_sp_get_stats, _sd_get_stats)
-
-    @copy_doc(_sp_get_stats)
-    async def async_get_stats(self):
-        return self._async_call(_ap_get_stats, _ad_get_stats)
-
-    @copy_doc(_sp_get_history)
-    def get_history(
-        self, *, limit: float, cursor: Union[Unset, None, str] = UNSET
-    ):
-        return self._call(
-            _sp_get_history, _sd_get_history, limit=limit, cursor=cursor
-        )
-
-    @copy_doc(_sp_get_history)
-    async def async_get_history(
-        self, *, limit: float, cursor: Union[Unset, None, str] = UNSET
-    ):
-        return self._async_call(
-            _ap_get_history, _ad_get_history, limit=limit, cursor=cursor
-        )
-
-    @copy_doc(_sp_replay_history)
-    def replay_history(self, id: str):
-        return self._call(_sp_replay_history, _sd_replay_history, id=id)
-
-    @copy_doc(_sp_replay_history)
-    async def async_replay_history(self, id: str):
-        return self._async_call(_ap_replay_history, _ad_replay_history, id=id)
-
-    @copy_doc(_sp_get_settings)
-    def get_settings(self):
-        return self._call(_sp_get_settings, _sd_get_settings)
-
-    @copy_doc(_sp_get_settings)
-    async def async_get_settings(self):
-        return self._async_call(_ap_get_settings, _ad_get_settings)
-
-    @copy_doc(_sp_set_settings)
-    def set_settings(self, *, json_body: SettingsTypesSettingsModel):
-        return self._call(
-            _sp_set_settings, _sd_set_settings, json_body=json_body
-        )
-
-    @copy_doc(_sp_set_settings)
-    async def async_set_settings(
-        self, *, json_body: SettingsTypesSettingsModel
-    ):
-        return self._async_call(
-            _ap_set_settings, _ad_set_settings, json_body=json_body
-        )
-
-    @copy_doc(_sp_add_address_to_stream)
-    def add_address_to_stream(
-        self, id: str, *, json_body: AddressesTypesAddressesAdd
-    ):
-        return self._call(
-            _sp_add_address_to_stream,
-            _sd_add_address_to_stream,
-            id=id,
-            json_body=json_body,
-        )
-
-    @copy_doc(_sp_add_address_to_stream)
-    async def async_add_address_to_stream(
-        self, id: str, *, json_body: AddressesTypesAddressesAdd
-    ):
-        return self._async_call(
-            _ap_add_address_to_stream,
-            _ad_add_address_to_stream,
-            id=id,
-            json_body=json_body,
-        )
-
-    @copy_doc(_sp_create_stream)
     def create_stream(
         self,
-        *,
         webhook_url: str,
         description: str,
         tag: str,
-        chain_ids: Union[str, List[str]],
-        stream_type: StreamsType,
-        address: str,
-        topic: str = None,
-        include_native_txs: bool = False,
-        abi: dict = None,
-        filter_: StreamsFilter = None,
-    ):
-        if isinstance(chain_ids, str):
-            chain_ids = [chain_ids]
-        if stream_type == StreamsType.CONTRACT:
-            token_address = address
-            address = None
-        elif stream_type == StreamsType.WALLET:
-            token_address = None
-        else:
-            raise ValueError(f"unexpected: {stream_type=}")
+        topic0: str,
+        all_addresses: bool,
+        include_native_txs: bool,
+        include_contract_logs: bool,
+        include_internal_txs: bool,
+        abi: List[str],
+        advanced_options: List[str],
+        chain_ids: List[str],
+    ) -> streams.StreamsTypesStreamsModel:
+        body = streams.StreamsTypesStreamsModelCreate(
+            webhook_url=webhook_url,
+            description=description,
+            tag=tag,
+            topic0=topic0,
+            all_addresses=all_addresses,
+            include_native_txs=include_native_txs,
+            include_contract_logs=include_contract_logs,
+            include_internal_txs=include_internal_txs,
+            abi=abi,
+            advanced_options=self._parse_advanced_options(advanced_options),
+            chain_ids=chain_ids,
+        )
+        return streams.EvmStreamsApi(self.client).create_stream(body=body)
 
-        return self._call(
-            _sp_create_stream,
-            _sd_create_stream,
-            json_body=StreamsTypesStreamsModelCreate(
-                webhook_url=webhook_url,
-                description=description,
-                tag=tag,
-                chain_ids=chain_ids,
-                type=stream_type,
-                token_address=token_address,
-                topic0=topic,
-                include_native_txs=include_native_txs,
-                abi=abi,
-                filter_=filter_,
-                address=address,
-            ),
+    def add_address_to_stream(
+        self, stream_id: str, address_list: List[str]
+    ) -> streams.AddressesTypesAddressResponse:
+        id = streams.StreamsTypesUUID(stream_id)
+        body = streams.AddressesTypesAddressesAdd(address=address_list)
+        return streams.EvmStreamsApi(self.client).add_address_to_stream(
+            body=body, id=id
         )
 
-    @copy_doc(_sp_create_stream)
-    async def async_create_stream(
-        self, *, json_body: StreamsTypesStreamsModelCreate
-    ):
-        return self._async_call(
-            _ap_create_stream, _ad_create_stream, json_body=json_body
-        )
-
-    @copy_doc(_sp_delete_address_from_stream)
     def delete_address_from_stream(
-        self, id: str, *, json_body: AddressesTypesAddressesRemove
-    ):
-        return self._call(
-            _sp_delete_address_from_stream,
-            _sd_delete_address_from_stream,
-            id=id,
-            json_body=json_body,
+        self, stream_id: str, address_list: List[str]
+    ) -> streams.AddressesTypesDeleteAddressResponse:
+        id = streams.StreamsTypesUUID(stream_id)
+        body = streams.AddressesTypesAddressesRemove(address=address_list)
+        return streams.EvmStreamsApi(self.client).delete_address_from_stream(
+            body=body, id=id
         )
 
-    @copy_doc(_sp_delete_address_from_stream)
-    async def async_delete_address_from_stream(
-        self, id: str, *, json_body: AddressesTypesAddressesRemove
-    ):
-        return self._async_call(
-            _ap_delete_address_from_stream,
-            _ad_delete_address_from_stream,
-            id=id,
-            json_body=json_body,
-        )
+    def delete_stream(
+        self, stream_id: str
+    ) -> streams.StreamsTypesStreamsModel:
+        id = streams.StreamsTypesUUID(stream_id)
+        return streams.EvmStreamsApi(self.client).delete_stream(id=id)
 
-    @copy_doc(_sp_delete_stream)
-    def delete_stream(self, id: str):
-        return self._call(_sp_delete_stream, _sd_delete_stream, id=id)
-
-    @copy_doc(_sp_delete_stream)
-    async def async_delete_stream(self, id: str):
-        return self._async_call(_ap_delete_stream, _ad_delete_stream, id=id)
-
-    @copy_doc(_sp_get_addresses)
     def get_addresses(
-        self, id: str, *, limit: float, cursor: Union[Unset, None, str] = UNSET
-    ):
-        return self._call(
-            _sp_get_addresses,
-            _sd_get_addresses,
-            id=id,
-            limit=limit,
-            cursor=cursor,
+        self, stream_id: str, limit: float, cursor: str
+    ) -> streams.AddressesTypesAddressResponse:
+        id = streams.StreamsTypesUUID(stream_id)
+        return streams.EvmStreamsApi(self.client).get_addessses(
+            id=id, limit=limit, cursor=cursor
         )
 
-    @copy_doc(_sp_get_addresses)
-    async def async_get_addresses(
-        self, id: str, *, limit: float, cursor: Union[Unset, None, str] = UNSET
-    ):
-        return self._async_call(
-            _ap_get_addresses,
-            _ad_get_addresses,
-            id=id,
-            limit=limit,
-            cursor=cursor,
-        )
+    def get_stream(self, stream_id: str) -> streams.StreamsTypesStreamsModel:
+        id = streams.StreamsTypesUUID(stream_id)
+        return streams.EvmStreamsApi(self.client).get_stream(id=id)
 
-    @copy_doc(_sp_get_stream)
-    def get_stream(self, id: str):
-        return self._call(_sp_get_stream, _sd_get_stream, id=id)
-
-    @copy_doc(_sp_get_stream)
-    async def async_get_stream(self, id: str):
-        return self._async_call(_ap_get_stream, _ad_get_stream, id=id)
-
-    @copy_doc(_sp_get_streams)
     def get_streams(
-        self,
-        *,
-        limit: float,
-        cursor: Union[Unset, None, str] = UNSET,
-    ):
-        return self._call(
-            _sp_get_streams, _sd_get_streams, limit=limit, cursor=cursor
+        self, limit: float, cursor: str
+    ) -> streams.StreamsTypesStreamsResponse:
+        return streams.EvmStreamsApi(self.client).get_streams(
+            limit=limit, cursor=cursor
         )
 
-    @copy_doc(_sp_get_streams)
-    async def async_get_streams(
-        self,
-        *,
-        limit: float,
-        cursor: Union[Unset, None, str] = UNSET,
-    ):
-        return self._async_call(
-            _ap_get_streams, _ad_get_streams, limit=limit, cursor=cursor
-        )
-
-    @copy_doc(_sp_update_stream)
     def update_stream(
-        self, id: str, *, json_body: PartialStreamsTypesStreamsModelCreate
-    ):
-        return self._call(
-            _sp_update_stream, _sd_update_stream, id=id, json_body=json_body
+        self,
+        stream_id: str,
+        webhook_url: str = None,
+        description: str = None,
+        tag: str = None,
+        topic0: str = None,
+        all_addresses: bool = None,
+        include_native_txs: bool = None,
+        include_contract_logs: bool = None,
+        include_internal_txs: bool = None,
+        abi: List[str] = None,
+        advanced_options: List[str] = None,
+        chain_ids: List[str] = None,
+    ) -> streams.StreamsTypesStreamsModel:
+        id = streams.StreamsTypesUUID(stream_id)
+        body = streams.streams.PartialStreamsTypesStreamsModelCreate_(
+            webhook_url=webhook_url,
+            description=description,
+            tag=tag,
+            topic0=topic0,
+            all_addresses=all_addresses,
+            include_native_txs=include_native_txs,
+            include_contract_logs=include_contract_logs,
+            include_internal_txs=include_internal_txs,
+            abi=abi,
+            advanced_options=self._parse_advanced_options(advanced_options),
+            chain_ids=chain_ids,
+        )
+        return streams.EvmStreamsApi(self.client).update_stream(
+            body=body, id=id
         )
 
-    @copy_doc(_sp_update_stream)
-    async def async_update_stream(
-        self, id: str, *, json_body: PartialStreamsTypesStreamsModelCreate
-    ):
-        return self._async_call(
-            _ap_update_stream, _ad_update_stream, id=id, json_body=json_body
-        )
-
-    @copy_doc(_sp_update_stream_status)
     def update_stream_status(
-        self, id: str, *, json_body: StreamsTypesStreamsStatusUpdate
-    ):
-        return self._call(
-            _sp_update_stream_status,
-            _sd_update_stream_status,
-            id=id,
-            json_body=json_body,
+        self, stream_id: str, status: str
+    ) -> streams.StreamsTypesStreamsModel:
+        id = streams.StreamsTypesUUID(stream_id)
+        body = streams.StreamsTypesStreamsStatusUpdate(status)
+        return streams.EvmStreamsApi(self.client).update_stream_status(
+            body, id
         )
 
-    @copy_doc(_sp_update_stream_status)
-    async def async_update_stream_status(
-        self, id: str, *, json_body: StreamsTypesStreamsStatusUpdate
-    ):
-        return self._async_call(
-            _ap_update_stream_status,
-            _ad_update_stream_status,
-            id=id,
-            json_body=json_body,
+    def get_history(
+        self, limit: float, cursor: str, exclude_payload: bool
+    ) -> streams.HistoryTypesHistoryResponse:
+        return streams.HistoryApi(self.client).get_history(
+            limit=limit, cursor=cursor, exclude_payload=exclude_payload
         )
 
-
-def connect(
-    *,
-    key: str,
-    url: str = DEFAULT_API_URL,
-    detailed: bool = False,
-    format_dict=True,
-) -> API:
-    client = AuthenticatedClient(
-        token=key, base_url=url, auth_header_name="x-api-key", prefix=None
-    )
-    return API(client=client, detailed=detailed, format_dict=format_dict)
+    def replay_history(self, id: str) -> streams.HistoryTypesHistoryModel:
+        id = streams.HistoryTypesUUID(id)
+        return streams.HistoryApi(self.client).replay_history(id=id)

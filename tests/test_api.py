@@ -5,6 +5,7 @@ from logging import info
 from pathlib import Path
 
 import ape
+import moralis_streams_api as streams
 import MoralisSDK.api
 import pytest
 import yaml
@@ -12,8 +13,6 @@ from backoff import expo, on_exception
 from box import Box
 from eth_utils import event_abi_to_log_topic, to_checksum_address
 from ratelimit import RateLimitException, limits
-
-from moralis_streams_client.api import connect
 
 CHAIN_ID = "0x5"
 
@@ -25,20 +24,6 @@ ETHERSCAN_LIMIT_COUNT = 5
 ETHERSCAN_LIMIT_SECONDS = 1
 
 EVENT_NAME = "PrintMintPending"
-
-
-@pytest.fixture
-def config():
-    def _config(key):
-        return os.environ[key]
-
-    return _config
-
-
-@pytest.fixture
-def api(config):
-    key = config("MORALIS_API_KEY")
-    return connect(key=key, format_dict=True)
 
 
 @pytest.fixture
@@ -131,25 +116,32 @@ def test_moralis_api(moralis, system_address, user_address):
         )
 
 
-def test_api_get_stats(api, dump):
-    ret = api.get_stats()
+def test_api_get_stats(beta_api, dump):
+    ret = beta_api.get_stats()
+    ret = ret.to_dict()
     assert isinstance(ret, dict)
     dump(ret)
 
 
 def test_api_create_stream(
-    api, dump, test_ethersieve_contract, explorer, webhook, webhook_tunnel_url
+    evm_api,
+    dump,
+    test_ethersieve_contract,
+    explorer,
+    webhook,
+    webhook_tunnel_url,
 ):
 
     contract_type = limit(explorer.get_contract_type, test_ethersieve_contract)
     contract = ape.contracts.ContractInstance(
         test_ethersieve_contract, contract_type
     )
+    assert contract
 
     event_abi = contract_type.events[EVENT_NAME].dict()
     event_topic = event_abi_to_log_topic(event_abi)
 
-    ret = api.create_stream(
+    ret = evm_api.create_stream(
         webhook_url=webhook_tunnel_url + "/contract/event",
         description="moralis_streams_client testing stream",
         tag="msc_test",
@@ -161,6 +153,7 @@ def test_api_create_stream(
         abi=event_abi,
         filter_=None,
     )
+    ret = ret.to_dict()
     assert isinstance(ret, dict)
     dump(ret)
     breakpoint()

@@ -13,11 +13,32 @@ import pytest
 import requests
 
 from moralis_streams_client import server
+from moralis_streams_client.connect import connect_streams_api
+from moralis_streams_client.defaults import (
+    MORALIS_STREAMS_URL,
+    QSIZE,
+    SERVER_ADDR,
+    SERVER_PORT,
+)
 from moralis_streams_client.tunnel import Tunnel
 
-SERVER_ADDR = "127.0.0.1"
-SERVER_PORT = 8888
-QSIZE = 1024
+
+@pytest.fixture
+def config():
+    def _config(key):
+        return os.environ[key]
+
+    return _config
+
+
+@pytest.fixture
+def api_key(config):
+    return config("MORALIS_API_KEY")
+
+
+@pytest.fixture
+def api_url():
+    return MORALIS_STREAMS_URL
 
 
 @pytest.fixture
@@ -139,3 +160,23 @@ def webhook_tunnel_url(webhook):
     assert len(tunnel.keys()) == 1
     url = list(tunnel.values())[0]
     return url
+
+
+@pytest.fixture
+def streams_api(api_key, api_url):
+    yield connect_streams_api(api_key, api_url)
+
+
+@pytest.fixture
+def project_api(streams_api):
+    return streams_api["project_api"]
+
+
+@pytest.fixture
+def evm_api(streams_api):
+    return streams_api["evm_api"]
+
+
+@pytest.fixture
+def beta_api(streams_api):
+    return streams_api["beta_api"]

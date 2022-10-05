@@ -1,27 +1,16 @@
-"""Console script for moralis_streams_client."""
+# moralis streams client CLI
 
 import json
+import logging
 import sys
 
 import click
+import moralis_streams_api as streams
 
-from .api import (
-    AddressesTypesAddressesAdd,
-    AddressesTypesAddressesRemove,
-    PartialStreamsTypesStreamsModelCreate,
-    Response,
-    SettingsRegion,
-    SettingsTypesSettingsModel,
-    StreamsStatus,
-    StreamsType,
-    StreamsTypesStreamsModelCreate,
-    StreamsTypesStreamsStatusUpdate,
-    connect,
-)
+from .api import MoralisStreamsApi
+from .defaults import MORALIS_STREAMS_URL, SERVER_ADDR, SERVER_PORT
 from .exception_handler import ExceptionHandler
 from .version import __timestamp__, __version__
-
-MORALIS_STREAMS_URL = "https://api.moralis-streams.com"
 
 header = f"{__name__.split('.')[0]} v{__version__} {__timestamp__}"
 
@@ -53,8 +42,9 @@ def cli(ctx, debug, url, key, verbose):
     """Moralis Streams API CLI"""
     ctx.obj = dict(ehandler=ExceptionHandler(debug))
     ctx.obj["debug"] = debug
+
     if ctx.invoked_subcommand != "webhook-server":
-        ctx.obj["api"] = connect(url=url, key=key, detailed=verbose)
+        ctx.obj["api"] = MoralisStreamsApi(key, url)
 
 
 @cli.command()
@@ -63,7 +53,7 @@ def cli(ctx, debug, url, key, verbose):
     "--addr",
     type=str,
     envvar="MSC_WEBHOOK_ADDR",
-    default="127.0.0.1",
+    default=SERVER_ADDR,
     help="IP addr",
 )
 @click.option(
@@ -71,7 +61,7 @@ def cli(ctx, debug, url, key, verbose):
     "--port",
     type=int,
     envvar="MSC_WEBHOOK_PORT",
-    default=8888,
+    default=SERVER_PORT,
     help="listen port",
 )
 @click.option(
@@ -105,6 +95,19 @@ def webhook_server(ctx, addr, port, workers, ngrok, ngrok_auth_token):
     )
 
 
+def class_strings(_class):
+    class_dict = _class.__dict__
+    return [
+        name
+        for name, member in class_dict.items()
+        if isinstance(member, str) and not name.startswith("__")
+    ]
+
+
+class Response:
+    pass
+
+
 def output(result):
     if isinstance(result, Response):
         result = dict(
@@ -128,8 +131,7 @@ def output(result):
 @click.pass_context
 def get_stats(ctx):
     """output beta statistics"""
-    api = ctx.obj["api"]
-    output(api.get_stats())
+    output(ctx.obj["api"].get_stats())
 
 
 @cli.command
@@ -142,20 +144,16 @@ def get_settings(ctx):
 @cli.command
 @click.pass_context
 @click.argument(
-    "region",
-    type=click.option(
-        [name for name, member in SettingsRegion.__members__.items()]
-    ),
+    "region", type=click.Choice(class_strings(streams.SettingsRegion))
 )
 def set_settings(ctx, region):
     """set settings"""
-    settings = SettingsTypesSettingsModel.from_dict({"region": region})
-    output(ctx.obj["api"].set_settings(settings))
+    output(ctx.obj["api"].set_settings(region))
 
 
 @cli.command
 @click.option(
-    "-i",
+    "-c",
     "--chain-id",
     type=str,
     multiple=True,
@@ -163,93 +161,82 @@ def set_settings(ctx, region):
 )
 @click.option(
     "-t",
-    "--stream-type",
-    type=click.Choice(
-        [name for name, member in StreamsType.__members__.items()]
-    ),
-)
-@click.option(
-    "-T",
     "--topic",
+    multiple=True,
     help="The topic0 of the event in hex (required for CONTRACT",
 )
 @click.option(
+    "-A",
+    "--all-addresses",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
+)
+@click.option(
     "-n",
-    "--include-native",
+    "--include-native-txs",
     is_flag=True,
     help="Include native transactions defaults to false (contract only)",
+)
+@click.option(
+    "-l",
+    "--include-contract-logs",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
+)
+@click.option(
+    "-i",
+    "--include-internal-txs",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
 )
 @click.option(
     "-a",
     "--abi",
     type=str,
+    multiple=True,
     help="The abi to parse the log object of the contract",
 )
 @click.option(
-    "-f",
-    "--filter",
-    "filter_",
+    "-o",
+    "--option",
+    multiple=True,
     type=str,
-    help="The filter object, optional (contract only)",
+    help="json string of Advanced Options {topic0: str, filter: str, include_native_txs: bool}",
 )
-@click.argument("tag", type=str)
-@click.argument("url", type=str)
+@click.argument("webhook_url", type=str)
 @click.argument("description", type=str)
-@click.argument("address", type=str)
+@click.argument("tag", type=str)
 @click.pass_context
 def create_stream(
     ctx,
-    url,
+    topic,
+    all_addresses,
+    include_native_txs,
+    include_contract_logs,
+    include_internal_txs,
+    abi,
+    option,
+    chain_id,
+    webhook_url,
     description,
     tag,
-    chain_id,
-    stream_type,
-    topic,
-    include_native,
-    abi,
-    filter_,
-    address,
 ):
-    """create new stream
-    URL: Webhook URL where moralis will send the POST request.
-    TAG: an identifier for this stream
-    ADDRESS: The wallet address of the user or the contract address
+    """create new stream"""
 
-    WALLET: listens to all native transactions of the address and all
-    logs where the address is involved in at least one of the topics
-
-    CONTRACT: listens to all native transactions of the address and
-    all logs produced by the contract address
-    """
     api = ctx.obj["api"]
-    if stream_type == "contract":
-        ret = api.create_stream(
-            json_body=StreamsTypesStreamsModelCreate(
-                webhook_url=url,
-                description=description,
-                tag=tag,
-                chain_ids=list(chain_id),
-                type="contract",
-                token_address=address,
-                topic0=topic,
-                include_native_txs=include_native,
-                abi=abi,
-                filter_=filter_,
-            )
-        )
-    elif stream_type == "wallet":
-        ret = api.create_stream(
-            json_body=StreamsTypesStreamsModelCreate(
-                webhook_url=url,
-                description=description,
-                tag=tag,
-                chain_ids=list(chain_id),
-                type="wallet",
-                address=address,
-            )
-        )
-    else:
-        raise ValueError(f"unrecognized stream type: {stream_type}")
+    ret = api.create_stream(
+        webhook_url=webhook_url,
+        description=description,
+        tag=tag,
+        topic0=list(topic),
+        all_addresses=all_addresses,
+        include_native_txs=include_native_txs,
+        include_contract_logs=include_contract_logs,
+        include_internal_txs=include_internal_txs,
+        abi=list(abi),
+        advanced_options=list(option),
+        chain_ids=list(chain_id),
+    )
     output(ret)
 
 
@@ -266,9 +253,7 @@ def create_stream(
 def add_address_to_stream(ctx, stream_id, address):
     """delete stream identified by stream-id"""
     api = ctx.obj["api"]
-    ret = api.add_address_to_stream(
-        stream_id, json_body=AddressesTypesAddressesAdd(address=list(address))
-    )
+    ret = api.add_address_to_stream(stream_id, list(address))
     output(ret)
 
 
@@ -278,9 +263,10 @@ def add_address_to_stream(ctx, stream_id, address):
 @click.pass_context
 def delete_address_from_stream(ctx, stream_id, address):
     """delete an address from the stream identified by stream-id"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
     ret = api.delete_addresses_from_stream(
-        stream_id, json_body=AddressesTypesAddressesRemove(address=address)
+        stream_id,
+        json_body=streams.AddressesTypesAddressesRemove(address=address),
     )
     output(ret)
 
@@ -290,7 +276,7 @@ def delete_address_from_stream(ctx, stream_id, address):
 @click.pass_context
 def delete_stream(ctx, stream_id):
     """delete stream identified by stream-id"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
     ret = api.delete_stream(stream_id)
     output(ret)
 
@@ -306,7 +292,7 @@ def delete_stream(ctx, stream_id):
 @click.pass_context
 def get_addresses(ctx, stream_id, limit, cursor):
     """list addresses associated with the stream identified by stream-id"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
     ret = api.delete_stream(stream_id, limit=limit, cursor=cursor)
     output(ret)
 
@@ -324,7 +310,7 @@ def get_addresses(ctx, stream_id, limit, cursor):
 @click.pass_context
 def get_streams(ctx, stream_id, limit, cursor):
     """list one or all streams"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
     if stream_id is None:
         ret = api.get_streams(limit=limit, cursor=cursor)
     else:
@@ -334,7 +320,7 @@ def get_streams(ctx, stream_id, limit, cursor):
 
 @cli.command
 @click.option(
-    "-i",
+    "-c",
     "--chain-id",
     type=str,
     multiple=True,
@@ -342,103 +328,100 @@ def get_streams(ctx, stream_id, limit, cursor):
 )
 @click.option(
     "-t",
-    "--stream-type",
-    type=click.Choice(
-        [name for name, member in StreamsType.__members__.items()]
-    ),
-)
-@click.option(
-    "-T",
     "--topic",
+    multiple=True,
     help="The topic0 of the event in hex (required for CONTRACT",
 )
 @click.option(
+    "-A",
+    "--all-addresses",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
+)
+@click.option(
     "-n",
-    "--include-native",
+    "--include-native-txs",
     is_flag=True,
     help="Include native transactions defaults to false (contract only)",
+)
+@click.option(
+    "-l",
+    "--include-contract-logs",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
+)
+@click.option(
+    "-i",
+    "--include-internal-txs",
+    is_flag=True,
+    help="Include events for all addresses (only applied when abi and topic0 is provided)",
 )
 @click.option(
     "-a",
     "--abi",
     type=str,
+    multiple=True,
     help="The abi to parse the log object of the contract",
 )
 @click.option(
-    "-f",
-    "--filter",
-    "filter_",
+    "-o",
+    "--option",
+    multiple=True,
     type=str,
-    help="The filter object, optional (contract only)",
+    help="json string of Advanced Options {topic0: str, filter: str, include_native_txs: bool}",
 )
 @click.argument("stream-id", type=str)
-@click.argument("tag", type=str)
-@click.argument("url", type=str)
+@click.argument("webhook-url", type=str)
 @click.argument("description", type=str)
-@click.argument("address", type=str)
+@click.argument("tag", type=str)
 @click.pass_context
 def update_stream(
     ctx,
     stream_id,
-    url,
+    webhook_url,
     description,
     tag,
-    chain_id,
-    stream_type,
     topic,
-    include_native,
+    all_addresses,
+    include_native_txs,
+    include_contract_logs,
+    include_internal_txs,
     abi,
-    filter_,
-    address,
+    option,
+    chain_id,
 ):
     """update stream parameters"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
 
-    if stream_type == "contract":
-        ret = api.update_stream(
-            id=stream_id,
-            json_body=PartialStreamsTypesStreamsModelCreate(
-                webhook_url=url,
-                description=description,
-                tag=tag,
-                chain_ids=list(chain_id),
-                type="contract",
-                token_address=address,
-                topic0=topic,
-                include_native_txs=include_native,
-                abi=abi,
-                filter_=filter_,
-            ),
-        )
-    elif stream_type == "wallet":
-        ret = api.update_stream(
-            id=stream_id,
-            json_body=PartialStreamsTypesStreamsModelCreate(
-                webhook_url=url,
-                description=description,
-                tag=tag,
-                chain_ids=list(chain_id),
-                type="wallet",
-                address=address,
-            ),
-        )
+    ret = api.update_stream(
+        id=stream_id,
+        webhook_url=webhook_url,
+        description=description,
+        tag=tag,
+        topic0=list(topic),
+        all_addresses=all_addresses,
+        include_native_txs=include_native_txs,
+        include_contract_logs=include_contract_logs,
+        include_internal_txs=include_internal_txs,
+        abi=list(abi),
+        advanced_options=list(option),
+        chain_ids=list(chain_id),
+    )
     output(ret)
 
 
 @cli.command
 @click.argument("stream-id", type=str)
 @click.argument(
-    "status",
-    type=click.Choice(
-        [name for name, member in StreamsStatus.__members__.items()]
-    ),
+    "status", type=click.Choice(class_strings(streams.StreamsStatus))
 )
 @click.pass_context
 def update_stream_status(ctx, stream_id, status):
     """update the status of a stream to active, paused, or error"""
-    api = ctx.obj["api"]
+    api = ctx.obj["evm_api"]
     ret = api.update_stream_status(
-        stream_id, json_body=StreamsTypesStreamsStatusUpdate(status=status)
+        id=stream_id,
+        json_body=streams.StreamsTypesStreamsStatusUpdate(status=status),
     )
     output(ret)
 

@@ -8,7 +8,8 @@ import sys
 import gunicorn.app.base
 from flask import Flask, abort, current_app, jsonify, request
 
-from moralis_streams_client.tunnel import Tunnel
+from .defaults import SERVER_ADDR, SERVER_PORT
+from .tunnel import Tunnel
 
 app = Flask(__name__)
 app.config.update(event_queue=collections.deque([]))
@@ -99,8 +100,8 @@ class GunicornServer(gunicorn.app.base.BaseApplication):
 
 
 def run(
-    addr="127.0.0.1",
-    port=8888,
+    addr=SERVER_ADDR,
+    port=SERVER_PORT,
     workers=1,
     level="info",
     tunnel=False,
