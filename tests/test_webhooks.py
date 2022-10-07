@@ -9,7 +9,6 @@ import requests
 
 WEBHOOK_TIMEOUT = 5
 
-
 def test_webhook_hello(webhook, dump):
     ret = webhook("hello")
     assert isinstance(ret, dict)
@@ -34,7 +33,7 @@ def test_webhook_queue(webhook, dump):
     webhook("clear")
     ret1 = webhook(
         "contract/event",
-        json=dict(
+        json_data=dict(
             int_data=1,
             str_data="some_string_1",
             dict_data={"foo": 1, "bar": 2},
@@ -43,7 +42,7 @@ def test_webhook_queue(webhook, dump):
     assert ret1
     ret2 = webhook(
         "contract/event",
-        json=dict(
+        json_data=dict(
             int_data=2,
             str_data="some_string_2",
             dict_data={"foo": 1, "bar": 2},
@@ -52,7 +51,7 @@ def test_webhook_queue(webhook, dump):
     assert ret2
     ret3 = webhook(
         "contract/event",
-        json=dict(
+        json_data=dict(
             int_data=2,
             str_data="some_string_3",
             dict_data={"foo": 1, "bar": 2},
@@ -67,12 +66,13 @@ def test_webhook_queue(webhook, dump):
         dump(event)
 
 
-def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
+def test_webhook_tunnel(webhook, webhook_tunnel_url, dump, calculate_signature):
     ret = webhook("clear")
     url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
-    response = requests.post(url, data=payload)
+    headers={"X-Signature": calculate_signature(json.dumps(payload))}
+    response = requests.post(url, json=payload, headers=headers)
     assert response.ok
     timeout = time.time() + WEBHOOK_TIMEOUT
     events = []

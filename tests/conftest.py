@@ -8,6 +8,10 @@ import queue
 from subprocess import check_call
 from time import sleep
 
+from eth_hash.auto import keccak
+from eth_utils import to_hex
+
+
 import attr
 import pytest
 import requests
@@ -133,13 +137,27 @@ def dump():
 
     return _dump
 
+@pytest.fixture
+def calculate_signature(api_key):
+    def _calculate_signature(body):
+        s = keccak.new(body.encode())
+        s.update(api_key.encode())
+        calculated = to_hex(s.digest())
+        return calculated 
+    return _calculate_signature
+
 
 @pytest.fixture
-def webhook(server_addr, server_port):
-    def _webhook(path, params=None, json=None):
+def webhook(server_addr, server_port, calculate_signature, dump):
+    def _webhook(path, params=None, json_data=None):
         url = f"http://{server_addr}:{server_port}/{path}"
-        if json:
-            response = requests.post(url, data=json)
+        if json_data:
+            headers={}
+            if path=='contract/event':
+                data = json.dumps(json_data)
+                dump(f"{data=}") 
+                headers['X-Signature'] = calculate_signature(data)
+            response = requests.post(url, json=json_data, headers=headers)
         else:
             response = requests.get(url, params=params)
         assert response.ok

@@ -152,8 +152,8 @@ def limit(func, *args, **kwargs):
 
 @pytest.fixture
 def get_contract_tokens(explorer, moralis, network):
-    def _get_contract_tokens(contract):
-        owners = Box(moralis.get_nft_owners(contract.address, chain=network))
+    def _get_contract_tokens(contract_address):
+        owners = Box(moralis.get_nft_owners(contract_address, chain=network))
         assert "result" in owners
         return owners.result
 
@@ -187,8 +187,8 @@ def test_transactions(
         info(f"  tokens={int(token_ids.total)}")
 
         tokens = get_contract_tokens(addr)
-        assert token_ids.total == tokens.total
-        for token in tokens.result:
+        assert token_ids.total == len(tokens)
+        for token in tokens:
             info(f"  {int(token.token_id)}: {token.name} {token.owner_of}")
 
 
@@ -288,13 +288,13 @@ def test_api_create_stream(
         assert is_same_address(address, ethersieve_contract.address)
 
     background_ids = []
-    for token in get_contract_tokens(background_contract):
+    for token in get_contract_tokens(background_contract.address):
         if is_same_address(token.owner_of, user_address):
             background_ids.append(token.token_id)
     dump(f"user background tokens: {background_ids}")
 
     ethersieve_ids = []
-    for token in get_contract_tokens(ethersieve_contract):
+    for token in get_contract_tokens(ethersieve_contract.address):
         if is_same_address(token.owner_of, user_address):
             ethersieve_ids.append(token.token_id)
     dump(f"user ethersieve tokens: {ethersieve_ids}")

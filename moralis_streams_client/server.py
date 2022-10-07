@@ -41,6 +41,8 @@ def contract_event():
 
     signature = request.headers["X-Signature"]
     api_key = current_app.config["api_key"]
+    data = request.get_data()
+    print(f"{data=}")
     verified = verify_signature(signature, request.get_data(), api_key)
     if verified is True:
         event = {}
