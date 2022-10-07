@@ -1,7 +1,10 @@
 attrs
+certifi
 click
 flask
 gunicorn
 httpx
 pyngrok
+python_dateutil
+requests
 toml

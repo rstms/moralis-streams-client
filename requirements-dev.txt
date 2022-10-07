@@ -5,6 +5,7 @@ backoff
 black
 bump2version
 coverage
+datamodel-code-generator[http]
 flake8
 flake8-length
 isort
@@ -13,5 +14,4 @@ pytest
 pytest-datadir
 python-box
 ratelimit
-requests
 tox
