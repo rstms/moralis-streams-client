@@ -9,6 +9,7 @@ import requests
 
 WEBHOOK_TIMEOUT = 5
 
+
 def test_webhook_hello(webhook, dump):
     ret = webhook("hello")
     assert isinstance(ret, dict)
@@ -66,12 +67,14 @@ def test_webhook_queue(webhook, dump):
         dump(event)
 
 
-def test_webhook_tunnel(webhook, webhook_tunnel_url, dump, calculate_signature):
+def test_webhook_tunnel(
+    webhook, webhook_tunnel_url, dump, calculate_signature
+):
     ret = webhook("clear")
     url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
-    headers={"X-Signature": calculate_signature(json.dumps(payload))}
+    headers = {"X-Signature": calculate_signature(json.dumps(payload))}
     response = requests.post(url, json=payload, headers=headers)
     assert response.ok
     timeout = time.time() + WEBHOOK_TIMEOUT
