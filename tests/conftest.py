@@ -13,7 +13,7 @@ import pytest
 import requests
 
 from moralis_streams_client import server
-from moralis_streams_client.connect import connect_streams_api
+from moralis_streams_client.api import MoralisStreamsApi
 from moralis_streams_client.defaults import (
     MORALIS_STREAMS_URL,
     QSIZE,
@@ -164,19 +164,4 @@ def webhook_tunnel_url(webhook):
 
 @pytest.fixture
 def streams_api(api_key, api_url):
-    yield connect_streams_api(api_key, api_url)
-
-
-@pytest.fixture
-def project_api(streams_api):
-    return streams_api["project_api"]
-
-
-@pytest.fixture
-def evm_api(streams_api):
-    return streams_api["evm_api"]
-
-
-@pytest.fixture
-def beta_api(streams_api):
-    return streams_api["beta_api"]
+    return MoralisStreamsApi(api_key, api_url)

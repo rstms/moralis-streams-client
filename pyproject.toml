@@ -27,12 +27,10 @@ dependencies = [
   "flask",
   "gunicorn",
   "httpx",
-  "moralis-streams-api",
   "pyngrok",
   "python_dateutil",
-  "six",
-  "toml",
-  "urllib3"
+  "requests",
+  "toml"
 ]
 
 [tool.flit.module]
@@ -47,6 +45,7 @@ dev = [
   "black",
   "bump2version",
   "coverage",
+  "datamodel-code-generator[http]",
   "flake8",
   "flake8-length",
   "isort",
@@ -55,7 +54,6 @@ dev = [
   "pytest-datadir",
   "python-box",
   "ratelimit",
-  "requests",
   "tox"
 ]
 docs = [

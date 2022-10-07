@@ -1,117 +1,160 @@
 # streams api client wrapper
 
 import json
-from typing import List
+from pprint import pformat
+from typing import Dict, List
 
-import moralis_streams_api as streams
+import requests
 
-from moralis_streams_client.defaults import MORALIS_STREAMS_URL
+from .defaults import MORALIS_STREAMS_URL
+
+
+class MoralisStreamsError(Exception):
+    pass
+
+
+class ErrorReturned(MoralisStreamsError):
+    pass
+
+
+class CallFailed(MoralisStreamsError):
+    pass
+
+
+REGIONS = ["us-east-1", "us-west-2", "eu-central-1", "ap-southeast-1"]
+
+STREAM_STATUS = ["active", "paused", "error"]
 
 
 class MoralisStreamsApi:
     def __init__(self, api_key, url=MORALIS_STREAMS_URL, verbose=False):
         if not api_key:
             raise ValueError(f"{api_key=}")
-        config = streams.Configuration()
-        config.api_key["x-api-key"] = api_key
-        config.host = url
-        self.client = streams.ApiClient(config)
+        self.url = url
+        self.headers = {"x-api-key": api_key}
         self.verbose = verbose
 
     def _parse_advanced_options(self, advanced_options):
-        options = []
-        for option in advanced_options:
-            odict = json.loads(option)
+        options = advanced_options or []
+        for o in options:
+            odict = json.loads(o)
             options.append(
-                streams.AdvancedOptions(
-                    topic0=odict["topic0"],
-                    filter=odict["filter"],
-                    include_native_txs=odict["include_native_txs"],
-                )
+                {
+                    key: odict[key]
+                    for key in ["topic0", "filter", "includeNativeTxs"]
+                }
             )
         return options
 
-    def get_stats(self) -> streams.StatstypesStatsModel:
-        return streams.BetaApi(self.client).get_stats()
+    def get(self, path, params=None):
+        response = requests.get(
+            self.url + path, headers=self.headers, params=params
+        )
+        return self.return_result(response)
 
-    def get_settings(self) -> streams.SettingsTypesSettingsModel:
-        return streams.ProjectApi(self.client).get_settings()
+    def post(self, path, body={}):
+        response = requests.post(
+            self.url + path, headers=self.headers, json=body
+        )
+        return self.return_result(response)
+
+    def put(self, path, body={}):
+        response = requests.put(
+            self.url + path, headers=self.headers, json=body
+        )
+        return self.return_result(response)
+
+    def delete(self, path, body={}):
+        response = requests.delete(
+            self.url + path, headers=self.headers, json=body
+        )
+        return self.return_result(response)
+
+    def return_result(self, response):
+        if not response.ok:
+            try:
+                msg = response.json()
+            except Exception as exc:
+                print(type(exc))
+                breakpoint()
+                raise CallFailed(response.text)
+            raise ErrorReturned(pformat(msg))
+        return response.json()
+
+    def get_stats(self) -> dict:
+        return self.get("/beta/stats")
+
+    def get_settings(self) -> dict:
+        return self.get("/project/settings")
 
     def set_settings(self, region: str) -> None:
-        settings = streams.SettingsTypesSettingsModel(region=region)
-        return streams.ProjectApi(self.client).set_settings(settings=settings)
+        self.post("/project/settings", dict(region=region))
 
     def create_stream(
         self,
         webhook_url: str,
         description: str,
         tag: str,
-        topic0: str,
+        topic0: List[str],
         all_addresses: bool,
         include_native_txs: bool,
         include_contract_logs: bool,
         include_internal_txs: bool,
-        abi: List[str],
-        advanced_options: List[str],
+        abi: List[Dict],
+        advanced_options: List[Dict],
         chain_ids: List[str],
-    ) -> streams.StreamsTypesStreamsModel:
-        body = streams.StreamsTypesStreamsModelCreate(
-            webhook_url=webhook_url,
+    ) -> dict:
+
+        params = dict(
+            webhookUrl=webhook_url,
             description=description,
             tag=tag,
             topic0=topic0,
-            all_addresses=all_addresses,
-            include_native_txs=include_native_txs,
-            include_contract_logs=include_contract_logs,
-            include_internal_txs=include_internal_txs,
+            allAddresses=all_addresses,
+            includeNativeTxs=include_native_txs,
+            includeContractLogs=include_contract_logs,
+            includeInternalTxs=include_internal_txs,
             abi=abi,
-            advanced_options=self._parse_advanced_options(advanced_options),
-            chain_ids=chain_ids,
+            advancedOptions=self._parse_advanced_options(advanced_options),
+            chainIds=chain_ids,
         )
-        return streams.EvmStreamsApi(self.client).create_stream(body=body)
+        return self.put("/streams/evm", params)
 
-    def add_address_to_stream(
-        self, stream_id: str, address_list: List[str]
-    ) -> streams.AddressesTypesAddressResponse:
-        id = streams.StreamsTypesUUID(stream_id)
-        body = streams.AddressesTypesAddressesAdd(address=address_list)
-        return streams.EvmStreamsApi(self.client).add_address_to_stream(
-            body=body, id=id
-        )
+    def add_address_to_stream(self, stream_id: str, address: str) -> dict:
+        path = f"/streams/evm/{stream_id}/address"
+        params = dict(address=address)
+        return self.post(path, params)
 
-    def delete_address_from_stream(
-        self, stream_id: str, address_list: List[str]
-    ) -> streams.AddressesTypesDeleteAddressResponse:
-        id = streams.StreamsTypesUUID(stream_id)
-        body = streams.AddressesTypesAddressesRemove(address=address_list)
-        return streams.EvmStreamsApi(self.client).delete_address_from_stream(
-            body=body, id=id
-        )
+    def delete_address_from_stream(self, stream_id: str, address: str) -> dict:
+        path = f"/streams/evm/{stream_id}/address"
+        params = dict(address=address)
+        return self.delete(path, params)
 
-    def delete_stream(
-        self, stream_id: str
-    ) -> streams.StreamsTypesStreamsModel:
-        id = streams.StreamsTypesUUID(stream_id)
-        return streams.EvmStreamsApi(self.client).delete_stream(id=id)
+    def delete_stream(self, stream_id: str) -> dict:
+        path = f"/streams/evm/{stream_id}"
+        return self.delete(path)
+
+    def query_params(self, limit, cursor):
+        params = {"limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+        return params
 
     def get_addresses(
-        self, stream_id: str, limit: float, cursor: str
-    ) -> streams.AddressesTypesAddressResponse:
-        id = streams.StreamsTypesUUID(stream_id)
-        return streams.EvmStreamsApi(self.client).get_addessses(
-            id=id, limit=limit, cursor=cursor
-        )
+        self, stream_id: str, limit: int = 100, cursor: str = None
+    ) -> List[str]:
+        path = f"/streams/evm/{stream_id}/address"
+        params = self.query_params(limit, cursor)
+        return self.get(path, params)
 
-    def get_stream(self, stream_id: str) -> streams.StreamsTypesStreamsModel:
-        id = streams.StreamsTypesUUID(stream_id)
-        return streams.EvmStreamsApi(self.client).get_stream(id=id)
+    def get_stream(self, stream_id: str) -> dict:
+        path = f"/streams/evm/{stream_id}"
+        return self.get(path)
 
-    def get_streams(
-        self, limit: float, cursor: str
-    ) -> streams.StreamsTypesStreamsResponse:
-        return streams.EvmStreamsApi(self.client).get_streams(
-            limit=limit, cursor=cursor
-        )
+    def get_streams(self, limit: int = 100, cursor: str = None) -> List[Dict]:
+        path = "/streams/evm"
+        params = self.query_params(limit, cursor)
+        return self.get(path, params)
 
     def update_stream(
         self,
@@ -127,41 +170,39 @@ class MoralisStreamsApi:
         abi: List[str] = None,
         advanced_options: List[str] = None,
         chain_ids: List[str] = None,
-    ) -> streams.StreamsTypesStreamsModel:
-        id = streams.StreamsTypesUUID(stream_id)
-        body = streams.streams.PartialStreamsTypesStreamsModelCreate_(
-            webhook_url=webhook_url,
+    ) -> dict:
+        path = f"/streams/evm/{stream_id}"
+        params = dict(
+            webhookUrl=webhook_url,
             description=description,
             tag=tag,
             topic0=topic0,
-            all_addresses=all_addresses,
-            include_native_txs=include_native_txs,
-            include_contract_logs=include_contract_logs,
-            include_internal_txs=include_internal_txs,
+            allAddresses=all_addresses,
+            includeNativeTxs=include_native_txs,
+            includeContractLogs=include_contract_logs,
+            includeInternalTxs=include_internal_txs,
             abi=abi,
-            advanced_options=self._parse_advanced_options(advanced_options),
-            chain_ids=chain_ids,
+            advancedOptions=self._parse_advanced_options(advanced_options),
+            chainIds=chain_ids,
         )
-        return streams.EvmStreamsApi(self.client).update_stream(
-            body=body, id=id
-        )
+        return self.post(path, params)
 
-    def update_stream_status(
-        self, stream_id: str, status: str
-    ) -> streams.StreamsTypesStreamsModel:
-        id = streams.StreamsTypesUUID(stream_id)
-        body = streams.StreamsTypesStreamsStatusUpdate(status)
-        return streams.EvmStreamsApi(self.client).update_stream_status(
-            body, id
-        )
+    def update_stream_status(self, stream_id: str, status: str) -> dict:
+        path = f"/streams/evm/{stream_id}/status"
+        params = dict(status=status)
+        return self.post(path, params)
 
     def get_history(
-        self, limit: float, cursor: str, exclude_payload: bool
-    ) -> streams.HistoryTypesHistoryResponse:
-        return streams.HistoryApi(self.client).get_history(
-            limit=limit, cursor=cursor, exclude_payload=exclude_payload
-        )
+        self,
+        limit: int = 100,
+        cursor: str = None,
+        exclude_payload: bool = False,
+    ) -> dict:
+        path = "/history"
+        params = self.query_params(limit, cursor)
+        params["exclude_payload"] = exclude_payload
+        return self.get(path, params)
 
-    def replay_history(self, id: str) -> streams.HistoryTypesHistoryModel:
-        id = streams.HistoryTypesUUID(id)
-        return streams.HistoryApi(self.client).replay_history(id=id)
+    def replay_history(self, event_id: str) -> List[Dict]:
+        path = f"/history/replay/{event_id}"
+        return self.post(path)

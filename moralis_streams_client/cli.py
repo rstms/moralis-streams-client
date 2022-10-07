@@ -5,9 +5,8 @@ import logging
 import sys
 
 import click
-import moralis_streams_api as streams
 
-from .api import MoralisStreamsApi
+from .api import REGIONS, STREAM_STATUS, MoralisStreamsApi
 from .defaults import MORALIS_STREAMS_URL, SERVER_ADDR, SERVER_PORT
 from .exception_handler import ExceptionHandler
 from .version import __timestamp__, __version__
@@ -42,9 +41,7 @@ def cli(ctx, debug, url, key, verbose):
     """Moralis Streams API CLI"""
     ctx.obj = dict(ehandler=ExceptionHandler(debug))
     ctx.obj["debug"] = debug
-
-    if ctx.invoked_subcommand != "webhook-server":
-        ctx.obj["api"] = MoralisStreamsApi(key, url)
+    ctx.obj["api"] = MoralisStreamsApi(key, url)
 
 
 @cli.command()
@@ -135,6 +132,34 @@ def get_stats(ctx):
 
 
 @cli.command
+@click.option(
+    "-l",
+    "--limit",
+    type=int,
+    default=100,
+    help="number of items in each result",
+)
+@click.option(
+    "-c", "--cursor", type=str, help="cursor for the next set of items"
+)
+@click.option(
+    "-x", "--exclude-payload", is_flag=True, help="exclude payload in response"
+)
+@click.pass_context
+def get_history(ctx, limit, cursor, exclude_payload):
+    """output event history"""
+    output(ctx.obj["api"].get_history(limit, cursor, exclude_payload))
+
+
+@cli.command
+@click.argument("event-id", type=str)
+@click.pass_context
+def replay_history(ctx, event_id):
+    """request resend of event callback"""
+    output(ctx.obj["api"].replay_history(event_id))
+
+
+@cli.command
 @click.pass_context
 def get_settings(ctx):
     """get settings"""
@@ -143,9 +168,7 @@ def get_settings(ctx):
 
 @cli.command
 @click.pass_context
-@click.argument(
-    "region", type=click.Choice(class_strings(streams.SettingsRegion))
-)
+@click.argument("region", type=click.Choice(REGIONS))
 def set_settings(ctx, region):
     """set settings"""
     output(ctx.obj["api"].set_settings(region))
@@ -263,11 +286,8 @@ def add_address_to_stream(ctx, stream_id, address):
 @click.pass_context
 def delete_address_from_stream(ctx, stream_id, address):
     """delete an address from the stream identified by stream-id"""
-    api = ctx.obj["evm_api"]
-    ret = api.delete_addresses_from_stream(
-        stream_id,
-        json_body=streams.AddressesTypesAddressesRemove(address=address),
-    )
+    api = ctx.obj["api"]
+    ret = api.delete_addresses_from_stream(stream_id, address)
     output(ret)
 
 
@@ -276,7 +296,7 @@ def delete_address_from_stream(ctx, stream_id, address):
 @click.pass_context
 def delete_stream(ctx, stream_id):
     """delete stream identified by stream-id"""
-    api = ctx.obj["evm_api"]
+    api = ctx.obj["api"]
     ret = api.delete_stream(stream_id)
     output(ret)
 
@@ -284,7 +304,11 @@ def delete_stream(ctx, stream_id):
 @cli.command
 @click.argument("stream-id", type=str)
 @click.option(
-    "-l", "--limit", type=float, help="number of items in each result"
+    "-l",
+    "--limit",
+    type=int,
+    default=100,
+    help="number of items in each result",
 )
 @click.option(
     "-c", "--cursor", type=str, help="cursor for the next set of items"
@@ -292,7 +316,7 @@ def delete_stream(ctx, stream_id):
 @click.pass_context
 def get_addresses(ctx, stream_id, limit, cursor):
     """list addresses associated with the stream identified by stream-id"""
-    api = ctx.obj["evm_api"]
+    api = ctx.obj["api"]
     ret = api.delete_stream(stream_id, limit=limit, cursor=cursor)
     output(ret)
 
@@ -302,7 +326,11 @@ def get_addresses(ctx, stream_id, limit, cursor):
     "-i", "--stream-id", type=str, help="stream_id, default is all streams"
 )
 @click.option(
-    "-l", "--limit", type=float, help="number of items in each result"
+    "-l",
+    "--limit",
+    type=int,
+    default=100,
+    help="number of items in each result",
 )
 @click.option(
     "-c", "--cursor", type=str, help="cursor for the next set of items"
@@ -310,7 +338,7 @@ def get_addresses(ctx, stream_id, limit, cursor):
 @click.pass_context
 def get_streams(ctx, stream_id, limit, cursor):
     """list one or all streams"""
-    api = ctx.obj["evm_api"]
+    api = ctx.obj["api"]
     if stream_id is None:
         ret = api.get_streams(limit=limit, cursor=cursor)
     else:
@@ -391,7 +419,7 @@ def update_stream(
     chain_id,
 ):
     """update stream parameters"""
-    api = ctx.obj["evm_api"]
+    api = ctx.obj["api"]
 
     ret = api.update_stream(
         id=stream_id,
@@ -412,17 +440,12 @@ def update_stream(
 
 @cli.command
 @click.argument("stream-id", type=str)
-@click.argument(
-    "status", type=click.Choice(class_strings(streams.StreamsStatus))
-)
+@click.argument("status", type=click.Choice(STREAM_STATUS))
 @click.pass_context
 def update_stream_status(ctx, stream_id, status):
     """update the status of a stream to active, paused, or error"""
-    api = ctx.obj["evm_api"]
-    ret = api.update_stream_status(
-        id=stream_id,
-        json_body=streams.StreamsTypesStreamsStatusUpdate(status=status),
-    )
+    api = ctx.obj["api"]
+    ret = api.update_stream_status(stream_id, status)
     output(ret)
 
 

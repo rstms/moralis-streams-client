@@ -1,12 +1,16 @@
 # webserver subprocess
 
 import collections
+import hashlib
 import os
 import signal
 import sys
+from pprint import pprint
 
 import gunicorn.app.base
 from flask import Flask, abort, current_app, jsonify, request
+
+from moralis_streams_client import verify_signature
 
 from .defaults import SERVER_ADDR, SERVER_PORT
 from .tunnel import Tunnel
@@ -15,6 +19,7 @@ app = Flask(__name__)
 app.config.update(event_queue=collections.deque([]))
 app.config.update(shutdown_queue=collections.deque([]))
 app.config.update(tunnel_url=None)
+app.config.update(api_key=os.environ["MORALIS_API_KEY"].encode())
 
 
 @app.route("/hello")
@@ -33,15 +38,23 @@ def tunnel():
 @app.route("/contract/event", methods=["POST"])
 def contract_event():
     print(f"/contract/event: {request}")
-    eq = current_app.config["event_queue"]
-    event = {}
-    event["path"] = request.path
-    event["method"] = request.method
-    event["headers"] = {h[0]: h[1] for h in list(request.headers)}
-    event["body"] = dict(request.form)
-    print(f"{event}")
-    eq.append(event)
-    return dict(result="ok")
+
+    signature = request.headers["X-Signature"]
+    api_key = current_app.config["api_key"]
+    verified = verify_signature(signature, request.get_data(), api_key)
+    if verified is True:
+        event = {}
+        event["path"] = request.path
+        event["method"] = request.method
+        event["headers"] = {h[0]: h[1] for h in list(request.headers)}
+        event["body"] = request.get_json()
+
+        eq = current_app.config["event_queue"]
+        eq.append(event)
+
+        return {"result": "ok"}, 200
+    else:
+        return {"authorization": False}, 401
 
 
 @app.route("/events")
@@ -106,9 +119,14 @@ def run(
     level="info",
     tunnel=False,
     token=None,
+    api=None,
 ):
     options = {"bind": f"{addr}:{port}", "workers": workers, "loglevel": level}
     server = GunicornServer(app, options)
+
+    if api:
+        app.config.update(streams_api=api)
+
     if tunnel:
         with Tunnel(port, token) as tunnel:
             app.config.update(tunnel_url=tunnel.public_url)
