@@ -1,6 +1,8 @@
 attrs
 certifi
 click
+eth-hash
+eth-utils
 flask
 gunicorn
 httpx
