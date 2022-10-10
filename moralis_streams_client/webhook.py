@@ -228,7 +228,6 @@ def start(ctx, logfile, wait_start):
                 bufsize=1,
             )
         except Exception as ex:
-            breakpoint()
             fail(ex)
 
         if wait_start:

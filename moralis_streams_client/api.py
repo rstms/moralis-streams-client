@@ -238,7 +238,6 @@ class MoralisStreamsApi:
             chainIds=chain_ids,
         )
         debug(f"{self} create_stream({params=})")
-        breakpoint()
         ret = self._put("/streams/evm", params)
         debug(f"{self} {ret=}")
         return ret
