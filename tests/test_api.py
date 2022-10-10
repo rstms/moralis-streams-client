@@ -2,7 +2,7 @@
 
 import os
 import time
-from logging import info
+from logging import debug, info
 from pathlib import Path
 
 import ape
@@ -10,7 +10,7 @@ import MoralisSDK.api
 import pytest
 import yaml
 from backoff import expo, on_exception
-from box import Box
+from box import Box, BoxList
 from eth_utils import (
     event_abi_to_log_topic,
     is_same_address,
@@ -18,6 +18,8 @@ from eth_utils import (
     to_hex,
 )
 from ratelimit import RateLimitException, limits
+
+import moralis_streams_client
 
 CHAIN_ID = "0x5"
 
@@ -29,6 +31,7 @@ ETHERSCAN_LIMIT_COUNT = 5
 ETHERSCAN_LIMIT_SECONDS = 1
 
 EVENT_NAME = "PrintMintPending"
+CONFIRM_COUNT = 12
 
 CALLBACK_TIMEOUT = 300
 
@@ -244,7 +247,7 @@ def test_api_create_stream(
 ):
     webhook("clear")
 
-    streams_begin = Box(streams_api.get_streams())
+    streams_begin = streams_api.get_streams()
 
     event_abi = ethersieve_contract.contract_type.events[event_name].dict()
     event_topic = to_hex(event_abi_to_log_topic(event_abi))
@@ -311,12 +314,21 @@ def test_api_create_stream(
     txn.nonce = nonce
     signature = user.sign_transaction(txn)
     txn.signature = signature
+    txn.required_confirmations = CONFIRM_COUNT
     receipt = provider.send_transaction(txn)
     dump(dict(txn_hash=receipt.txn_hash, status=str(receipt.status)))
 
-    info("Waiting up to {CALLBACK_TIMEOUT} seconds for 3 callback events...")
+    confirmed_height = receipt.block_number + CONFIRM_COUNT
+    last_height = receipt.block_number
+    info(f"Waiting for {CONFIRM_COUNT} confirmations...")
+    while last_height < confirmed_height:
+        height = explorer.network.provider.chain_manager.blocks.height
+        if last_height != height:
+            info(f"block: {height}")
+            last_height = height
+
     timeout = time.time() + CALLBACK_TIMEOUT
-    # check for a callback
+    info(f"Waiting up to {CALLBACK_TIMEOUT} seconds for 3 callback events...")
     events = []
     while len(events) < 3:
         webhook_events = webhook("events")
@@ -340,28 +352,32 @@ def test_api_create_stream(
     result = Box(streams_api.delete_stream(stream.id))
     assert result.id == stream.id
 
-    streams_end = Box(streams_api.get_streams())
+    streams_end = streams_api.get_streams()
 
-    assert streams_begin.total == streams_end.total
+    assert len(streams_begin) == len(streams_end)
 
 
 def test_api_get_streams(streams_api):
     streams = streams_api.get_streams()
-    assert isinstance(streams, dict)
-    assert set(streams.keys()) == set(["result", "total"])
-    assert isinstance(streams["total"], int)
-    assert isinstance(streams["result"], list)
-    count = streams["total"]
-    streams = streams["result"]
-    assert count == len(streams)
+    assert isinstance(streams, list)
     for stream in streams:
         assert isinstance(stream, dict)
 
 
+def test_api_get_history(streams_api, monkeypatch):
+    monkeypatch.setattr(streams_api, "row_limit", 10)
+
+    history_events = streams_api.get_history()
+    assert isinstance(history_events, list)
+    for history_event in history_events:
+        assert isinstance(history_event, dict)
+
+
 def test_api_delete_all_streams(streams_api, dump):
     streams = streams_api.get_streams()
-    streams = streams["result"]
+    assert isinstance(streams, list)
     for stream in streams:
+        assert isinstance(stream, dict)
         stream_id = stream["id"]
         dump(f"deleting stream {stream_id}")
         result = streams_api.delete_stream(stream_id)
@@ -369,4 +385,5 @@ def test_api_delete_all_streams(streams_api, dump):
         assert result["id"] == stream_id
 
     streams = streams_api.get_streams()
-    assert streams["total"] == 0
+    assert isinstance(streams, list)
+    assert len(streams) == 0

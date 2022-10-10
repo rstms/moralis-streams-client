@@ -1,7 +1,9 @@
 """Top-level package for moralis-streams-client."""
 
-from .auth import verify_signature
+from .api import MoralisStreamsApi
+from .auth import Signature
 from .cli import cli
+from .defaults import ACTIVE, ERROR, PAUSED, REGION_CHOICES, STATUS_CHOICES
 from .version import __author__, __email__, __timestamp__, __version__
 
 __all__ = [
@@ -10,5 +12,11 @@ __all__ = [
     __author__,
     __email__,
     "cli",
-    "verify_signature",
+    "ACTIVE",
+    "PAUSED",
+    "ERROR",
+    "REGION_CHOICES",
+    "STATUS_CHOICES",
+    "MoralisStreamsApi",
+    "Signature",
 ]

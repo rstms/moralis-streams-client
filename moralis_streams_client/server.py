@@ -10,16 +10,16 @@ from pprint import pprint
 import gunicorn.app.base
 from flask import Flask, abort, current_app, jsonify, request
 
-from moralis_streams_client import verify_signature
-
+from .api import MoralisStreamsApi
+from .auth import Signature
 from .defaults import SERVER_ADDR, SERVER_PORT
-from .tunnel import Tunnel
+from .tunnel import NgrokTunnel
 
 app = Flask(__name__)
 app.config.update(event_queue=collections.deque([]))
 app.config.update(shutdown_queue=collections.deque([]))
 app.config.update(tunnel_url=None)
-app.config.update(api_key=os.environ["MORALIS_API_KEY"].encode())
+app.config.update(auth=Signature())
 
 
 @app.route("/hello")
@@ -39,11 +39,13 @@ def tunnel():
 def contract_event():
     print(f"/contract/event: {request}")
 
-    signature = request.headers["X-Signature"]
-    api_key = current_app.config["api_key"]
     data = request.get_data()
     print(f"{data=}")
-    verified = verify_signature(signature, request.get_data(), api_key)
+
+    auth = current_app.config["auth"]
+    signature = request.headers["X-Signature"]
+    verified = auth.validate(signature, request.get_data())
+
     if verified is True:
         event = {}
         event["path"] = request.path
@@ -114,25 +116,25 @@ class GunicornServer(gunicorn.app.base.BaseApplication):
         return self.application
 
 
-def run(
-    addr=SERVER_ADDR,
-    port=SERVER_PORT,
-    workers=1,
-    level="info",
-    tunnel=False,
-    token=None,
-    api=None,
-):
-    options = {"bind": f"{addr}:{port}", "workers": workers, "loglevel": level}
-    server = GunicornServer(app, options)
+class ServerProcess:
+    def __init__(self, config):
+        addr = config.get("addr", SERVER_ADDR)
+        self.port = int(config.get("port", SERVER_PORT))
+        self.tunnel = config.get("tunnel", True)
+        self.token = config.get("ngrok_token", os.environ["NGROK_AUTHTOKEN"])
+        workers = int(config.get("workers", "1"))
+        debug = config.get("debug", False)
+        options = {
+            "bind": f"{addr}:{self.port}",
+            "workers": workers,
+            "loglevel": "debug" if debug else "info",
+        }
+        self.server = GunicornServer(app, options)
 
-    if api:
-        app.config.update(streams_api=api)
-
-    if tunnel:
-        with Tunnel(port, token) as tunnel:
-            app.config.update(tunnel_url=tunnel.public_url)
-            ret = server.run()
-    else:
-        ret = server.run()
-    return ret
+    def run(self):
+        if self.tunnel is True:
+            with NgrokTunnel(self.port, self.token) as tunnel:
+                app.config.update(tunnel_url=tunnel.public_url)
+                return self.server.run()
+        else:
+            return self.server.run()

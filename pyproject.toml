@@ -78,4 +78,4 @@ collect_ignore = ['setup.py']
 
 [project.scripts]
 msc = "moralis_streams_client:cli"
-
+webhook = "moralis_streams_client.webhook:webhook"

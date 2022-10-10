@@ -74,7 +74,9 @@ def test_webhook_tunnel(
     url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
-    headers = {"X-Signature": calculate_signature(json.dumps(payload))}
+    headers = {
+        "X-Signature": calculate_signature(json.dumps(payload).encode())
+    }
     response = requests.post(url, json=payload, headers=headers)
     assert response.ok
     timeout = time.time() + WEBHOOK_TIMEOUT

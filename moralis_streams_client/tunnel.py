@@ -7,14 +7,14 @@ import os
 from pyngrok import ngrok
 
 
-class Tunnel:
+class NgrokTunnel:
 
     tunnel = None
 
     def __init__(self, port=None, token=None):
         if self.__class__.tunnel is None:
             logging.debug("Connecting ngrok tunnel...")
-            token = token or os.environ["NGROK_AUTH_TOKEN"]
+            token = token or os.environ["NGROK_AUTHTOKEN"]
             ngrok.set_auth_token(token)
             self.__class__.tunnel = ngrok.connect(port)
             logging.debug(f"public_url={self.url()}")
