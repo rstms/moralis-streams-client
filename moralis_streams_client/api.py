@@ -7,8 +7,6 @@ from pprint import pformat
 from typing import Dict, List
 
 import requests
-from eth_hash.auto import keccak
-from eth_utils import to_hex
 from requests.exceptions import HTTPError, JSONDecodeError
 
 from .defaults import (
@@ -21,26 +19,11 @@ from .defaults import (
     ROW_LIMIT,
     STREAMS_URL,
 )
+from .exceptions import CallFailed, ErrorReturned, ResponseFormatError
 
 logger = logging.getLogger(__name__)
 info = logger.info
 debug = logger.debug
-
-
-class MoralisStreamsError(Exception):
-    pass
-
-
-class ErrorReturned(MoralisStreamsError):
-    pass
-
-
-class CallFailed(MoralisStreamsError):
-    pass
-
-
-class ResponseFormatError(MoralisStreamsError):
-    pass
 
 
 class MoralisStreamsApi:
@@ -114,23 +97,31 @@ class MoralisStreamsApi:
         return self._return_result(response)
 
     def _return_result(self, response, require_keys=[]):
+        errors = []
+        try:
+            message = response.json()
+        except JSONDecodeError as exc:
+            message = response.text
+            errors.append(ResponseFormatError(f"{exc}"))
+
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            raise CallFailed(f"{exc}") from exc
-        else:
-            try:
-                ret = response.json()
-            except JSONDecodeError:
-                raise ResponseFormatError(
-                    f"expected JSON, got {response.text()}"
-                )
+            errors.append(str(exc))
+            raise CallFailed((message, errors)) from exc
 
-        for key in require_keys:
-            if key not in ret:
-                raise CallFailed(f"missing '{key}' in {ret=}")
+        if isinstance(message, dict):
+            for key in require_keys:
+                if key not in message:
+                    errors.append(f"missing required key '{key}'")
 
-        return ret
+        if errors:
+            raise ResponseFormatError((message, errors))
+
+        if response.ok is False:
+            raise ErrorReturned((message, response.reason))
+
+        return message
 
     def _get_page(self, count, path, params, results, require_keys):
 
