@@ -24,6 +24,7 @@ from .exceptions import CallFailed, ErrorReturned, ResponseFormatError
 logger = logging.getLogger(__name__)
 info = logger.info
 debug = logger.debug
+error = logging.error
 
 
 class MoralisStreamsApi:
@@ -96,12 +97,12 @@ class MoralisStreamsApi:
         )
         return self._return_result(response)
 
-    def kludge(self message):
+    def kludge(self, message):
         """patch buggy return value seen on 2022-10-11 in POST streams/evm/{streamID}"""
         if '0' in message and '1' in message and message['0'] == 'id':
-            message['id'] == message['1']
-            message.pop('0')
-            message.pop('1')
+            error('patching "0":"id", "1":"<stream_id>"')
+            message[message.pop('0')] == message.pop('1')
+        return message
 
     def _return_result(self, response, require_keys=[]):
         errors = []
