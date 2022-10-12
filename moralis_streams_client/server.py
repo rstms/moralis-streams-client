@@ -65,7 +65,17 @@ def contract_event():
 def events():
     print(f"/events: {request}")
     eq = current_app.config["event_queue"]
-    return dict(result=list(eq))
+
+    # create a list from the event_queue, preserving order
+    event_list = []
+    tq = eq.copy()
+    try:
+        while True:
+            event_list.append(tq.popleft())
+    except IndexError:
+        pass
+
+    return dict(result=event_list)
 
 
 @app.route("/clear")

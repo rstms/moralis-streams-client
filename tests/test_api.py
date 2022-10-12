@@ -330,6 +330,7 @@ def test_api_create_stream(
         value="14000000 gwei",
         sender=user,
         max_fee_per_gas=provider.base_fee + 10_000_000_000,
+        required_confirmations=CONFIRM_COUNT,
     )
     dump(dict(txn_hash=receipt.txn_hash, status=str(receipt.status)))
 
@@ -374,20 +375,61 @@ def test_api_create_stream(
     assert len(streams_begin) == len(streams_end)
 
 
-def test_api_get_streams(streams_api):
+def test_api_get_streams_default(streams_api):
     streams = streams_api.get_streams()
     assert isinstance(streams, list)
-    for stream in streams:
+    for i, stream in enumerate(streams):
         assert isinstance(stream, dict)
+        info(f"{i}: {stream['id']}")
+
+@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+def test_api_get_streams_row_limit(streams_api, monkeypatch):
+    monkeypatch.setattr(streams_api, "row_limit", 3)
+    streams = streams_api.get_streams()
+    assert isinstance(streams, list)
+    for i, stream in enumerate(streams):
+        assert isinstance(stream, dict)
+        info(f"{i}: {stream['id']}")
 
 
-def test_api_get_history(streams_api, monkeypatch):
-    #monkeypatch.setattr(streams_api, "row_limit", 10)
+@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+def test_api_get_streams_row_page_limit(streams_api, monkeypatch):
+    monkeypatch.setattr(streams_api, "row_limit", 2)
+    monkeypatch.setattr(streams_api, "page_limit", 2)
+    streams = streams_api.get_streams()
+    assert isinstance(streams, list)
+    for i, stream in enumerate(streams):
+        assert isinstance(stream, dict)
+        info(f"{i}: {stream['id']}")
 
+
+def test_api_get_history_default(streams_api):
     history_events = streams_api.get_history()
     assert isinstance(history_events, list)
-    for history_event in history_events:
+    for i, history_event in enumerate(history_events):
         assert isinstance(history_event, dict)
+        info(f"{i}: {history_event['id']}")
+
+
+@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+def test_api_get_history_row_limit(streams_api, monkeypatch):
+    monkeypatch.setattr(streams_api, "row_limit", 3)
+    history_events = streams_api.get_history()
+    assert isinstance(history_events, list)
+    for i, history_event in enumerate(history_events):
+        assert isinstance(history_event, dict)
+        info(f"{i}: {history_event['id']}")
+
+
+@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+def test_api_get_history_row_page_limit(streams_api, monkeypatch):
+    monkeypatch.setattr(streams_api, "row_limit", 3)
+    monkeypatch.setattr(streams_api, "page_limit", 2)
+    history_events = streams_api.get_history()
+    assert isinstance(history_events, list)
+    for i, history_event in enumerate(history_events):
+        assert isinstance(history_event, dict)
+        info(f"{i}: {history_event['id']}")
 
 
 def test_api_delete_all_streams(streams_api, dump):

@@ -142,18 +142,18 @@ class MoralisStreamsApi:
         ret = self._get(path, params=params, require_keys=require_keys)
 
         debug(f"ret.keys={list(ret.keys())}")
-        debug(f"ret.total={ret['total']}")
-        debug(f"ret.cursor={ret.get('cursor', '<NOT_PRESENT>')}")
+        debug(f"  total={ret['total']}")
+        debug(f"  cursor={ret.get('cursor', '<NOT_PRESENT>')}")
         result = ret.get("result")
-        debug(f"len(ret.result)={len(result)}")
+        debug(f"  result=[{len(result)}]")
         for i, r in enumerate(result):
-            debug(f"  result[{i}]: {r['id']}")
+            debug(f"    result[{i}]: {r['id']}")
 
-        len_before = len(results)
-        if len(result)>0:
+        if len(result) > 0:
+            len_before = len(results)
             results.extend(result)
             len_after = len(results)
-            debug(f"results extended from {len_before} to {len_after}")
+            debug(f"results: [{len_before}] -> [{len_after}]")
             for i, r in enumerate(results):
                 debug(f"  results[{i}]: {r['id']}")
 
@@ -162,37 +162,67 @@ class MoralisStreamsApi:
     def _get_paginated(self, path, params={}):
         results = []
         params.setdefault("limit", self.row_limit)
-        ret = dict(cursor=None)
         count = 0
-        while "cursor" in ret:
-            params["cursor"] = ret["cursor"]
+        cursor = None
+        total = None
+        debug("---BEGIN_PAGINATED---")
+        while True:
+            if cursor:
+                params["cursor"] = cursor
+            else:
+                params.pop("cursor", None)
 
             ret, results = self._get_page(
                 count, path, params, results, ["total", "result"]
             )
 
-            # check for total overrun
-            total = int(ret["total"])
+            _total = int(ret["total"])
+            if total is None:
+                total = _total
+                debug(f"setting {total=} on iteration {count=}")
+            else:
+                if total != _total:
+                    raise ResponseFormatError(
+                        f"total_changed: original={total=} latest={_total} {count=}"
+                    )
+
             if len(results) == total:
-                debug(f"exiting pagination: {total=} results={len(results)}")
+                debug(f"pagination_exit: {total=} results={len(results)}")
                 break
-            elif len(results) > total:
-                raise CallFailed(
+
+            # missing cursor exit
+            try:
+                cursor = ret["cursor"]
+            except KeyError:
+                debug("pagination_exit: no cursor in ret")
+                break
+
+            # null or empty string cursor exit
+            if cursor in ["", None]:
+                error(f"NULL cursor returned: NULL cursor={repr(cursor)}")
+
+            # check for total overrun
+            if len(results) > total:
+                raise ResponseFormatError(
                     f"overrun: {total=} results_len={len(results)}"
                 )
 
             # check for runaway page count
             count += 1
             if count > self.page_limit:
-                raise CallFailed(
+                raise ResponseFormatError(
                     f"exceeded page count limit ({self.page_limit})"
                 )
-                
-            cursor = ret.get('cursor', None)
-            if cursor in ['', None]:
-                debug(f"exiting pagination: {cursor=}")
-                breakpoint()
-                break
+
+        if total is None:
+            raise ResponseFormatError("exited with {total=}")
+
+        if len(results) != total:
+            raise ResponseFormatError(
+                f"results length mismatch: {total=} len(results)={len(results)}"
+            )
+
+        debug("---END_PAGINATED---")
 
         return results
 
