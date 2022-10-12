@@ -49,7 +49,7 @@ CALLBACK_TEST_KEYS = [
     "txs",
     "txsInternal",
     "streamId",
-    "tag"
+    "tag",
 ]
 
 
@@ -321,13 +321,22 @@ def test_api_create_stream(
     txn.required_confirmations = CONFIRM_COUNT
     receipt = provider.send_transaction(txn)
     """
-    receipt = ethersieve_contract.printMint(0,0,1,2,3,value="14000000 gwei",sender=user, max_fee_per_gas=provider.base_fee + 10_000_000_000)
+    receipt = ethersieve_contract.printMint(
+        0,
+        0,
+        1,
+        2,
+        3,
+        value="14000000 gwei",
+        sender=user,
+        max_fee_per_gas=provider.base_fee + 10_000_000_000,
+    )
     dump(dict(txn_hash=receipt.txn_hash, status=str(receipt.status)))
 
     confirmed_height = receipt.block_number + CONFIRM_COUNT
     last_height = receipt.block_number
     info(f"Waiting for {CONFIRM_COUNT} confirmations...")
-    count=1
+    count = 1
     while last_height < confirmed_height:
         height = explorer.network.provider.chain_manager.blocks.height
         if last_height != height:
