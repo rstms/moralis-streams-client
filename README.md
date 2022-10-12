@@ -2,6 +2,7 @@
 moralis-streams-client
 ======================
 
+OpenAPI client module for moralis streams API
 
 ![Image](https://img.shields.io/github/license/rstms/moralis_streams_client)
 
