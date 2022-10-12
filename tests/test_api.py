@@ -36,7 +36,7 @@ CONFIRM_COUNT = 12
 CALLBACK_TIMEOUT = 300
 
 CALLBACK_TEST_KEYS = [
-    "abis",
+    "abi",
     "block",
     "chainId",
     "confirmed",
@@ -48,6 +48,8 @@ CALLBACK_TEST_KEYS = [
     "retries",
     "txs",
     "txsInternal",
+    "streamId",
+    "tag"
 ]
 
 
@@ -307,8 +309,10 @@ def test_api_create_stream(
     user = provider.account_manager.load("user")
     user.set_autosign(True, passphrase=user_passphrase)
     user.unlock(user_passphrase)
+
+    """
     txn = ethersieve_contract.printMint.as_transaction(
-        0, 0, 1, 2, 3, value="14000000 gwei", sender=user_address
+        0, 0, 1, 2, 3, value="14000000 gwei", sender=user_address,max_fee_per_gas=provider.base_fee
     )
     nonce = provider.get_nonce(user_address)
     txn.nonce = nonce
@@ -316,16 +320,20 @@ def test_api_create_stream(
     txn.signature = signature
     txn.required_confirmations = CONFIRM_COUNT
     receipt = provider.send_transaction(txn)
+    """
+    receipt = ethersieve_contract.printMint(0,0,1,2,3,value="14000000 gwei",sender=user, max_fee_per_gas=provider.base_fee + 10_000_000_000)
     dump(dict(txn_hash=receipt.txn_hash, status=str(receipt.status)))
 
     confirmed_height = receipt.block_number + CONFIRM_COUNT
     last_height = receipt.block_number
     info(f"Waiting for {CONFIRM_COUNT} confirmations...")
+    count=1
     while last_height < confirmed_height:
         height = explorer.network.provider.chain_manager.blocks.height
         if last_height != height:
-            info(f"block: {height}")
+            info(f"block[{count} of {CONFIRM_COUNT}]: {height}")
             last_height = height
+            count += 1
 
     timeout = time.time() + CALLBACK_TIMEOUT
     info(f"Waiting up to {CALLBACK_TIMEOUT} seconds for 3 callback events...")
