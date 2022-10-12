@@ -382,7 +382,8 @@ def test_api_get_streams_default(streams_api):
         assert isinstance(stream, dict)
         info(f"{i}: {stream['id']}")
 
-@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+
+@pytest.mark.skip(reason="paged_results seem to be broken; revisit later")
 def test_api_get_streams_row_limit(streams_api, monkeypatch):
     monkeypatch.setattr(streams_api, "row_limit", 3)
     streams = streams_api.get_streams()
@@ -392,7 +393,7 @@ def test_api_get_streams_row_limit(streams_api, monkeypatch):
         info(f"{i}: {stream['id']}")
 
 
-@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+@pytest.mark.skip(reason="paged_results seem to be broken; revisit later")
 def test_api_get_streams_row_page_limit(streams_api, monkeypatch):
     monkeypatch.setattr(streams_api, "row_limit", 2)
     monkeypatch.setattr(streams_api, "page_limit", 2)
@@ -411,7 +412,7 @@ def test_api_get_history_default(streams_api):
         info(f"{i}: {history_event['id']}")
 
 
-@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+@pytest.mark.skip(reason="paged_results seem to be broken; revisit later")
 def test_api_get_history_row_limit(streams_api, monkeypatch):
     monkeypatch.setattr(streams_api, "row_limit", 3)
     history_events = streams_api.get_history()
@@ -421,7 +422,7 @@ def test_api_get_history_row_limit(streams_api, monkeypatch):
         info(f"{i}: {history_event['id']}")
 
 
-@pytest.mark.skip(reason='paged_results seem to be broken; revisit later')
+@pytest.mark.skip(reason="paged_results seem to be broken; revisit later")
 def test_api_get_history_row_page_limit(streams_api, monkeypatch):
     monkeypatch.setattr(streams_api, "row_limit", 3)
     monkeypatch.setattr(streams_api, "page_limit", 2)
