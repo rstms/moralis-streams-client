@@ -382,7 +382,7 @@ def test_api_get_streams(streams_api):
 
 
 def test_api_get_history(streams_api, monkeypatch):
-    monkeypatch.setattr(streams_api, "row_limit", 10)
+    #monkeypatch.setattr(streams_api, "row_limit", 10)
 
     history_events = streams_api.get_history()
     assert isinstance(history_events, list)

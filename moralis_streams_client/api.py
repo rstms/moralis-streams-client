@@ -145,17 +145,17 @@ class MoralisStreamsApi:
         debug(f"ret.total={ret['total']}")
         debug(f"ret.cursor={ret.get('cursor', '<NOT_PRESENT>')}")
         result = ret.get("result")
+        debug(f"len(ret.result)={len(result)}")
         for i, r in enumerate(result):
             debug(f"  result[{i}]: {r['id']}")
 
         len_before = len(results)
-
-        results.extend(result)
-
-        len_after = len(results)
-        debug(f"results extended from {len_before} to {len_after}")
-        for i, r in enumerate(results):
-            debug(f"  results[{i}]: {r['id']}")
+        if len(result)>0:
+            results.extend(result)
+            len_after = len(results)
+            debug(f"results extended from {len_before} to {len_after}")
+            for i, r in enumerate(results):
+                debug(f"  results[{i}]: {r['id']}")
 
         return ret, results
 
@@ -173,7 +173,10 @@ class MoralisStreamsApi:
 
             # check for total overrun
             total = int(ret["total"])
-            if len(results) > total:
+            if len(results) == total:
+                debug(f"exiting pagination: {total=} results={len(results)}")
+                break
+            elif len(results) > total:
                 raise CallFailed(
                     f"overrun: {total=} results_len={len(results)}"
                 )
@@ -184,6 +187,12 @@ class MoralisStreamsApi:
                 raise CallFailed(
                     f"exceeded page count limit ({self.page_limit})"
                 )
+                
+            cursor = ret.get('cursor', None)
+            if cursor in ['', None]:
+                debug(f"exiting pagination: {cursor=}")
+                breakpoint()
+                break
 
         return results
 
