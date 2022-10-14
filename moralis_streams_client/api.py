@@ -19,7 +19,11 @@ from .defaults import (
     ROW_LIMIT,
     STREAMS_URL,
 )
-from .exceptions import CallFailed, ErrorReturned, ResponseFormatError
+from .exceptions import (
+    MoralisStreamsCallFailed,
+    MoralisStreamsErrorReturned,
+    MoralisStreamsResponseFormatError,
+)
 
 logger = logging.getLogger(__name__)
 info = logger.info
@@ -110,7 +114,7 @@ class MoralisStreamsApi:
             message = response.json()
         except JSONDecodeError as exc:
             message = response.text
-            errors.append(ResponseFormatError(f"{exc}"))
+            errors.append(MoralisStreamsResponseFormatError(f"{exc}"))
 
         message = self.kludge(message)
 
@@ -118,7 +122,7 @@ class MoralisStreamsApi:
             response.raise_for_status()
         except HTTPError as exc:
             errors.append(str(exc))
-            raise CallFailed((message, errors)) from exc
+            raise MoralisStreamsCallFailed((message, errors)) from exc
 
         if isinstance(message, dict):
             for key in require_keys:
@@ -126,10 +130,10 @@ class MoralisStreamsApi:
                     errors.append(f"missing required key '{key}'")
 
         if errors:
-            raise ResponseFormatError((message, errors))
+            raise MoralisStreamsResponseFormatError((message, errors))
 
         if response.ok is False:
-            raise ErrorReturned((message, response.reason))
+            raise MoralisStreamsErrorReturned((message, response.reason))
 
         return message
 
@@ -182,7 +186,7 @@ class MoralisStreamsApi:
                 debug(f"setting {total=} on iteration {count=}")
             else:
                 if total != _total:
-                    raise ResponseFormatError(
+                    raise MoralisStreamsResponseFormatError(
                         f"total_changed: original={total=} latest={_total} {count=}"
                     )
 
@@ -203,22 +207,22 @@ class MoralisStreamsApi:
 
             # check for total overrun
             if len(results) > total:
-                raise ResponseFormatError(
+                raise MoralisStreamsResponseFormatError(
                     f"overrun: {total=} results_len={len(results)}"
                 )
 
             # check for runaway page count
             count += 1
             if count > self.page_limit:
-                raise ResponseFormatError(
+                raise MoralisStreamsResponseFormatError(
                     f"exceeded page count limit ({self.page_limit})"
                 )
 
         if total is None:
-            raise ResponseFormatError("exited with {total=}")
+            raise MoralisStreamsResponseFormatError("exited with {total=}")
 
         if len(results) != total:
-            raise ResponseFormatError(
+            raise MoralisStreamsResponseFormatError(
                 f"results length mismatch: {total=} len(results)={len(results)}"
             )
 

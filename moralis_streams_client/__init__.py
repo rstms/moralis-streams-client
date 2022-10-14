@@ -5,10 +5,10 @@ from .auth import Signature
 from .cli import cli
 from .defaults import ACTIVE, ERROR, PAUSED, REGION_CHOICES, STATUS_CHOICES
 from .exceptions import (
-    CallFailed,
-    ErrorReturned,
+    MoralisStreamsCallFailed,
     MoralisStreamsError,
-    ResponseFormatError,
+    MoralisStreamsErrorReturned,
+    MoralisStreamsResponseFormatError,
 )
 from .version import __author__, __email__, __timestamp__, __version__
 
@@ -23,10 +23,10 @@ __all__ = [
     "ERROR",
     "REGION_CHOICES",
     "STATUS_CHOICES",
+    "MoralisStreamsError",
+    "MoralisStreamsCallFailed",
+    "MoralisStreamsErrorReturned",
+    "MoralisStreamsResponseFormatError",
     "MoralisStreamsApi",
     "Signature",
-    "MoralisStreamsError",
-    "ErrorReturned",
-    "CallFailed",
-    "ResponseFormatError",
 ]

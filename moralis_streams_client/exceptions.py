@@ -5,13 +5,13 @@ class MoralisStreamsError(Exception):
     pass
 
 
-class ErrorReturned(MoralisStreamsError):
+class MoralisStreamsErrorReturned(MoralisStreamsError):
     pass
 
 
-class CallFailed(MoralisStreamsError):
+class MoralisStreamsCallFailed(MoralisStreamsError):
     pass
 
 
-class ResponseFormatError(MoralisStreamsError):
+class MoralisStreamsResponseFormatError(MoralisStreamsError):
     pass
