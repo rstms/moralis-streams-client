@@ -111,3 +111,4 @@ ENV/
 .lint
 postactivate
 .build
+openapi.json

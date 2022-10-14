@@ -1,0 +1,29 @@
+#!/bin/bash
+
+MODEL=moralis_streams_client/model.py
+
+grep -v update_forward_ref $MODEL >$MODEL.tmp
+echo >>$MODEL.tmp
+grep update_forward_ref $MODEL >>$MODEL.tmp
+mv $MODEL.tmp $MODEL
+
+sed -i $MODEL -e 's/webhookTypes\.//g'
+
+sed -i $MODEL -e '/^class UUID1(/,+4d'
+
+RENAME_DUPLICATE_CLASS="$(cat - <<EOF
+
+  BEGIN { count=0; }
+
+  /^class StreamsModelCreate\(/ {
+    if (++count == 2) {
+	sub(/StreamsModelCreate/, "StreamsModelUpdate");
+    }
+  }
+
+  { print \$0; }
+
+EOF
+)"
+
+awk <$MODEL "$DELETE_DUPLICATE_CLASS"  >$MODEL.tmp

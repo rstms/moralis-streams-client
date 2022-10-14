@@ -1,6 +1,6 @@
 # source formatting
 
-lint_src = $(module) tests docs
+lint_src = $(module) tests docs scripts/generate-models
 
 _fmt:
 	isort $(lint_src)
