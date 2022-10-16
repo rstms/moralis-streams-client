@@ -5,10 +5,10 @@ import time
 from logging import debug, info
 from pathlib import Path
 
-import ape
 import MoralisSDK.api
 import pytest
 import yaml
+from ape_apeman import APE
 from backoff import expo, on_exception
 from box import Box, BoxList
 from eth_utils import (
@@ -20,6 +20,7 @@ from eth_utils import (
 from ratelimit import RateLimitException, limits
 
 import moralis_streams_client
+from moralis_streams_client import models
 
 CHAIN_ID = "0x5"
 
@@ -74,11 +75,9 @@ def chain_id():
 
 
 @pytest.fixture
-def explorer(ecosystem, network, provider):
-    selector = f"{ecosystem}:{network}:{provider}"
-    assert selector in list(ape.networks.get_network_choices())
-    with ape.networks.parse_network_choice(selector) as network:
-        yield network.network.explorer
+def ape(ecosystem, network, provider):
+    with APE(ecosystem=ecosystem, network=network, provider=provider) as ape:
+        yield ape
 
 
 @pytest.fixture
@@ -138,10 +137,9 @@ def moralis(config):
 
 
 @pytest.fixture
-def get_contract(explorer):
+def get_contract(ape):
     def _get_contract(address):
-        contract_type = limit(explorer.get_contract_type, address)
-        contract = ape.contracts.ContractInstance(address, contract_type)
+        contract = ape.contracts.instance_at(address)
         assert contract
         return contract
 
@@ -156,7 +154,7 @@ def limit(func, *args, **kwargs):
 
 
 @pytest.fixture
-def get_contract_tokens(explorer, moralis, network):
+def get_contract_tokens(moralis, network):
     def _get_contract_tokens(contract_address):
         owners = Box(moralis.get_nft_owners(contract_address, chain=network))
         assert "result" in owners
@@ -166,10 +164,10 @@ def get_contract_tokens(explorer, moralis, network):
 
 
 def test_transactions(
-    explorer, get_contract, get_contract_tokens, system_address, moralis
+    ape, get_contract, get_contract_tokens, system_address, moralis
 ):
-    assert explorer
-    txns = list(limit(explorer.get_account_transactions, system_address))
+    assert ape.explorer
+    txns = list(limit(ape.explorer.get_account_transactions, system_address))
     assert txns
     contracts = set()
     for txn in txns:
@@ -185,7 +183,7 @@ def test_transactions(
         contract = get_contract(addr)
         info(f"{contract.symbol()} {contract}")
 
-        url = explorer.get_address_url(addr)
+        url = ape.explorer.get_address_url(addr)
         info(url)
 
         token_ids = Box(moralis.get_token_id(addr, chain="goerli"))
@@ -243,7 +241,7 @@ def test_api_create_stream(
     user_address,
     user_key,
     user_passphrase,
-    explorer,
+    ape,
     webhook,
     webhook_tunnel_url,
 ):
@@ -270,12 +268,10 @@ def test_api_create_stream(
             chain_ids=[chain_id],
         )
     )
-    assert isinstance(stream, dict)
     dump(f"{stream.id=}")
     dump(f"{stream.tag=}")
     dump(f"{stream.status=}")
     dump(f"{stream.statusMessage=}")
-
     address_added = Box(
         streams_api.add_address_to_stream(
             stream.id, [ethersieve_contract.address]
@@ -305,7 +301,7 @@ def test_api_create_stream(
     dump(f"user ethersieve tokens: {ethersieve_ids}")
 
     # send a printMint transaction from user to ethersieve
-    provider = explorer.provider
+    provider = ape.explorer.provider
     user = provider.account_manager.load("user")
     user.set_autosign(True, passphrase=user_passphrase)
     user.unlock(user_passphrase)
@@ -339,7 +335,7 @@ def test_api_create_stream(
     info(f"Waiting for {CONFIRM_COUNT} confirmations...")
     count = 1
     while last_height < confirmed_height:
-        height = explorer.network.provider.chain_manager.blocks.height
+        height = ape.provider.chain_manager.blocks.height
         if last_height != height:
             info(f"block[{count} of {CONFIRM_COUNT}]: {height}")
             last_height = height

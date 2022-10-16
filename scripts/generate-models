@@ -9,9 +9,17 @@ from subprocess import run
 from tempfile import TemporaryDirectory
 
 import click
-import ipdb
 
 PYTHON_VERSION = ".".join(platform.python_version_tuple()[:2])
+
+VBASEMODEL = """
+class VBaseModel(BaseModel):
+    class Config:
+        extra = Extra.forbid
+        json_encoders = {
+            "UUIDModel": lambda b: str(b.__root__)
+        }
+"""
 
 
 @click.command(context_settings=dict(ignore_unknown_options=True))
@@ -207,13 +215,15 @@ class DirProcessor:
             self.outdir / "model.py",
             filter_import=True,
             filter_webhook_prefix=True,
+            define_vbasemodel=True,
+            filter_basemodel=True,
         )
 
         model_classes = [c for c in classes if c.endswith("Model")]
         model_classes.append("UUID")
         model_classes.append("IWebhookUnParsed")
         model_classes.append("ITinyPayload")
-        pprint({"model_classes": model_classes})
+        # pprint({"model_classes": model_classes})
 
         imports = {"model": classes}
         remap_classes = {}
@@ -224,6 +234,7 @@ class DirProcessor:
                 self.outdir / source,
                 filter_import=True,
                 filter_models=model_classes,
+                filter_basemodel=True,
             )
             if not source.endswith(".py"):
                 raise RuntimeError(f"unexpected filename: {source=}")
@@ -239,12 +250,11 @@ class DirProcessor:
             self.outdir / "model.py", filtered_classes["webhookTypes"]
         )
 
-        pprint({"remap": remap_classes})
-        pprint({"filtered": filtered_classes})
+        # pprint({"remap": remap_classes})
+        # pprint({"filtered": filtered_classes})
 
     def add_classes(self, outfile, classes):
         with outfile.open("a") as ofp:
-            breakpoint()
             for class_lines in classes.values():
                 for line in class_lines:
                     ofp.write(line)
@@ -271,15 +281,33 @@ class DirProcessor:
         filter_import=False,
         filter_webhook_prefix=False,
         filter_models=[],
+        filter_basemodel=False,
+        define_vbasemodel=False,
     ):
         classes = []
         remaps = []
         filtered = {}
         filter_class = None
         last = "."
+        skip_next_line = False
         with infile.open("r") as ifp:
             with outfile.open("w") as ofp:
                 for line in ifp.readlines():
+                    if skip_next_line:
+                        skip_next_line = False
+                        continue
+                    if define_vbasemodel:
+                        if "from pydantic import" in line:
+                            ofp.write(line)
+                            ofp.write(VBASEMODEL)
+                            continue
+                    if filter_basemodel:
+                        if "(BaseModel)" in line:
+                            line = line.replace("(BaseModel)", "(VBaseModel)")
+                        if "class Config:" in line:
+                            skip_next_line = True
+                            continue
+
                     if filter_webhook_prefix:
                         if "webhookTypes." in line:
                             line = line.replace("webhookTypes.", "")
@@ -331,6 +359,8 @@ class DirProcessor:
     def rewrite_import(self, line):
         if "from . import webhookTypes" in line:
             line = "\n"
+        elif "from pydantic import" in line:
+            line = line + "from .model import VBaseModel\n"
         elif "from . import" in line:
             line = line.replace("from . import", "from .model import")
             words = line.split()

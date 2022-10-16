@@ -112,3 +112,4 @@ ENV/
 postactivate
 .build
 openapi.json
+model_import

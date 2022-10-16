@@ -17,11 +17,11 @@ uninstall:
 
 
 generate-models:
+	which datamodel-codegen || pipx install datamodel-code-generator
 	curl -s https://api.moralis-streams.com/api-docs/swagger.json | jq . >openapi.json
 	rm -rf model_import
 	rm -rf moralis_streams_client/models
-	ipdb3 -c continue scripts/generate-models --output models --input openapi.json --backup-dir model_import
-	#postprocess-model
+	scripts/generate-models --output models --input openapi.json --backup-dir model_import
 
 
 ### remove all build, test, coverage and Python artifacts

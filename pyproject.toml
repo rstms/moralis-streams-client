@@ -40,14 +40,11 @@ name = "moralis_streams_client"
 
 [project.optional-dependencies]
 dev = [
-  "eth-ape",
-  "ape-etherscan",
-  "ape-alchemy",
+  "ape-apeman",
   "backoff",
   "black",
   "bump2version",
   "coverage",
-  "datamodel-code-generator[http]",
   "flake8",
   "flake8-length",
   "isort",
