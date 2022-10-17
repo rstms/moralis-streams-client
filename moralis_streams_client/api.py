@@ -38,7 +38,7 @@ class MoralisStreamsApi:
         api_key=None,
         url=STREAMS_URL,
         region=REGION,
-        debug=False,
+        debug=None,
         row_limit=ROW_LIMIT,
         page_limit=PAGE_LIMIT,
     ):
@@ -48,7 +48,10 @@ class MoralisStreamsApi:
         self.page_limit = page_limit
         self.row_limit = row_limit
         self._init_region(region)
+        if debug is None:
+            debug = bool(int(os.environ.get('MORALIS_STREAMS_API_DEBUG', '0')))
         self.debug = debug
+
 
     def __str__(self):
         return self.__repr__()
@@ -164,7 +167,7 @@ class MoralisStreamsApi:
             results.extend(result)
 
             if self.debug:
-            len_after = len(results)
+                len_after = len(results)
                 debug(f"results: [{len_before}] -> [{len_after}]")
                 for i, r in enumerate(results):
                     debug(f"  results[{i}]: {r}")
