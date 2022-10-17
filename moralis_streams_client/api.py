@@ -49,9 +49,8 @@ class MoralisStreamsApi:
         self.row_limit = row_limit
         self._init_region(region)
         if debug is None:
-            debug = bool(int(os.environ.get('MORALIS_STREAMS_API_DEBUG', '0')))
+            debug = bool(int(os.environ.get("MORALIS_STREAMS_API_DEBUG", "0")))
         self.debug = debug
-
 
     def __str__(self):
         return self.__repr__()
