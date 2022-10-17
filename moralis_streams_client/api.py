@@ -139,27 +139,35 @@ class MoralisStreamsApi:
 
     def _get_page(self, count, path, params, results, require_keys):
 
-        # debug("----")
-        # debug(f"{count=}")
-        # debug(f"get({repr(path)},{params=})")
+        if self.debug:
+            debug("----")
+            debug(f"{count=}")
+            debug(f"get({repr(path)},{params=})")
 
         ret = self._get(path, params=params, require_keys=require_keys)
 
-        # debug(f"ret.keys={list(ret.keys())}")
-        # debug(f"  total={ret['total']}")
-        # debug(f"  cursor={ret.get('cursor', '<NOT_PRESENT>')}")
+        if self.debug:
+            debug(f"  total={ret['total']}")
+            debug(f"  cursor={ret.get('cursor', '<NOT_PRESENT>')}")
+
         result = ret.get("result")
-        # debug(f"  result=[{len(result)}]")
-        # for i, r in enumerate(result):
-        #    debug(f"    result[{i}]: {r}")
+
+        if self.debug:
+            debug(f"  result=[{len(result)}]")
+            for i, r in enumerate(result):
+                debug(f"    result[{i}]: {r}")
 
         if len(result) > 0:
-            # len_before = len(results)
+            if self.debug:
+                len_before = len(results)
+
             results.extend(result)
-            # len_after = len(results)
-            # debug(f"results: [{len_before}] -> [{len_after}]")
-            # for i, r in enumerate(results):
-            #    debug(f"  results[{i}]: {r}")
+
+            if self.debug:
+            len_after = len(results)
+                debug(f"results: [{len_before}] -> [{len_after}]")
+                for i, r in enumerate(results):
+                    debug(f"  results[{i}]: {r}")
 
         return ret, results
 
@@ -169,7 +177,8 @@ class MoralisStreamsApi:
         count = 0
         cursor = None
         total = None
-        # debug("---BEGIN_PAGINATED---")
+        if self.debug:
+            debug("---BEGIN_PAGINATED---")
         while True:
             if cursor:
                 params["cursor"] = cursor
@@ -183,7 +192,8 @@ class MoralisStreamsApi:
             _total = int(ret["total"])
             if total is None:
                 total = _total
-                # debug(f"setting {total=} on iteration {count=}")
+                if self.debug:
+                    debug(f"setting {total=} on iteration {count=}")
             else:
                 if total != _total:
                     raise MoralisStreamsResponseFormatError(
@@ -191,14 +201,16 @@ class MoralisStreamsApi:
                     )
 
             if len(results) == total:
-                # debug(f"pagination_exit: {total=} results={len(results)}")
+                if self.debug:
+                    debug(f"pagination_exit: {total=} results={len(results)}")
                 break
 
             # missing cursor exit
             try:
                 cursor = ret["cursor"]
             except KeyError:
-                # debug("pagination_exit: no cursor in ret")
+                if self.debug:
+                    debug("pagination_exit: no cursor in ret")
                 break
 
             # null or empty string cursor exit
@@ -226,7 +238,8 @@ class MoralisStreamsApi:
                 f"results length mismatch: {total=} len(results)={len(results)}"
             )
 
-        # debug("---END_PAGINATED---")
+        if self.debug:
+            debug("---END_PAGINATED---")
 
         return results
 
