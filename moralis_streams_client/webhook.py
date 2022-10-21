@@ -14,6 +14,7 @@ from eth_utils import to_hex
 
 from .auth import Signature
 from .defaults import SERVER_ADDR, SERVER_PORT
+from .exception_handler import ExceptionHandler
 
 logger = logging.getLogger(__name__)
 debug = logger.debug
@@ -48,8 +49,17 @@ def get(ctx, path):
     return result.json()["result"]
 
 
+def _delete(ctx, path):
+    try:
+        result = requests.delete(_url(ctx, path))
+        result.raise_for_status()
+    except Exception as ex:
+        fail(ex)
+    return result.json()["result"]
+
+
 def post(ctx, path, data={}, headers={}):
-    headers = ctx.obj["auth"].headers(data)
+    headers = ctx.obj["auth"].headers(json.dumps(data).encode())
     try:
         result = requests.post(_url(ctx, path), json=data, headers=headers)
         result.raise_for_status()
@@ -92,7 +102,7 @@ def post(ctx, path, data={}, headers={}):
 def webhook(ctx, addr, port, tunnel, debug):
     """webhook endpoint server commands"""
     if isinstance(ctx.obj, dict) is False:
-        ctx.obj = {}
+        ctx.obj = dict(ehandler=ExceptionHandler(debug))
         ctx.obj["debug"] = debug
     ctx.obj["auth"] = Signature()
     ctx.obj["addr"] = addr
@@ -134,10 +144,46 @@ def url(ctx):
 
 
 @webhook.command
+@click.option("-s", "--set_url", type=str, help="set relay url")
+@click.option("-d", "--disable", is_flag=True, help="disable relay url")
 @click.pass_context
-def hello(ctx):
-    """send and recieve a friendly greeting"""
-    output(get(ctx, "hello"))
+def relay(ctx, set_url, disable):
+    """output the tunnel url"""
+    if set_url:
+        output(post(ctx, "relay", data=dict(url=set_url)))
+    elif disable:
+        output(post(ctx, "relay", data=dict(url=None)))
+    else:
+        output(get(ctx, "relay"))
+
+
+@webhook.command
+@click.option("-m", "--message", type=str, help="create json message data")
+@click.argument("input", default="-", type=click.File("r"))
+@click.pass_context
+def inject(ctx, message, input):
+    """inject an event"""
+    if message:
+        data = dict(message=message)
+    else:
+        data = json.load(input)
+    output(post(ctx, "inject", data=data))
+
+
+@webhook.command
+@click.argument("event-id", type=str)
+@click.pass_context
+def event(ctx, event_id):
+    """get an event by id"""
+    output(get(ctx, f"event/{event_id}"))
+
+
+@webhook.command
+@click.argument("event-id", type=str)
+@click.pass_context
+def delete(ctx, event_id):
+    """delete an event by id"""
+    output(_delete(ctx, f"event/{event_id}"))
 
 
 @webhook.command

@@ -106,6 +106,7 @@ class MoralisStreamsApi:
     def kludge(self, message):
         """patch buggy return value seen on 2022-10-11 in POST streams/evm/{streamID}"""
         if "0" in message and "1" in message and message["0"] == "id":
+            breakpoint()
             if self.debug:
                 error('patching "0":"id", "1":"<stream_id>"')
             message[message.pop("0")] == message.pop("1")
