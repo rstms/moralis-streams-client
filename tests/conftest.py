@@ -114,7 +114,7 @@ def server_run(*args, **kwargs):
 def webhook_server():
     try:
         print("starting webhook_server...")
-        os.environ['WEBHOOK_ENABLE_BUFFER'] = '1'
+        os.environ["WEBHOOK_ENABLE_BUFFER"] = "1"
         p = mp.Process(
             target=server_run,
             kwargs={

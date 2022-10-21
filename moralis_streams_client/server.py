@@ -45,10 +45,12 @@ def inject():
         eq.append(event)
     return dict(result={"injected": event["id"]}), 200
 
+
 @app.route("/hello")
 def hello():
     print(f"{request.method} /hello: {request}")
     return dict(result=dict(message="Hello, World!")), 200
+
 
 @app.route("/tunnel")
 def tunnel():
