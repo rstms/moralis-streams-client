@@ -6,6 +6,7 @@ eth-utils
 flask
 gunicorn
 httpx
+psutil
 pyngrok
 python_dateutil
 requests
