@@ -10,7 +10,7 @@ from .api import MoralisStreamsApi
 from .defaults import REGION_CHOICES, STATUS_CHOICES, STREAMS_URL
 from .exception_handler import ExceptionHandler
 from .version import __timestamp__, __version__
-from .webhook import webhook
+from .webhook_cli import webhook
 
 header = f"{__name__.split('.')[0]} v{__version__} {__timestamp__}"
 

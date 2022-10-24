@@ -3,322 +3,206 @@
 import json
 import logging
 import os
+import re
 import sys
+import time
 from pathlib import Path
 from subprocess import DEVNULL, STDOUT, CalledProcessError, Popen, check_output
 
-import click
+import psutil
 import requests
-from eth_hash.auto import keccak
-from eth_utils import to_hex
 
-from .auth import Signature
-from .defaults import SERVER_ADDR, SERVER_PORT
-from .exception_handler import ExceptionHandler
+from .signature import Signature
 
 logger = logging.getLogger(__name__)
 debug = logger.debug
 
-
-def output(data):
-    click.echo(json.dumps(data, indent=2))
-
-
-def fail(error):
-    click.echo(f"Error: {error}", err=True)
-    sys.exit(-1)
+PROCESS_START_TIMEOUT = 5
+PROCESS_STOP_TIMEOUT = 10
 
 
-def run(cmd):
-    return check_output(cmd, shell=True).decode()
+class Webhook:
+    def __init__(
+        self,
+        *,
+        addr="127.0.0.1",
+        port=8080,
+        debug=False,
+        base_url=None,
+        tunnel=True,
+        relay_url=None,
+        relay_key=None,
+        relay_header=None,
+        enable_buffer=True,
+        moralis_api_key=None,
+    ):
+        self.debug = debug
+        self.addr = addr
+        self.port = port
+        base_url = base_url or f"http://{addr}:{port}/"
+        self.base_url = base_url.strip("/") + "/"
+        self.tunnel = tunnel
+        self.relay_url = relay_url
+        self.relay_key = relay_key
+        self.relay_header = relay_header
+        self.enable_buffer = enable_buffer
+        self.moralis_api_key = moralis_api_key
+        self.signature = Signature()
+        self.proc = None
 
+    def _request(self, method, path, **kwargs):
+        # generate a signature checksum
+        raise_for_status = kwargs.pop("raise_for_status", True)
+        kwargs.setdefault("json", {})
+        kwargs.setdefault("headers", {})
+        kwargs["headers"].update(
+            self.signature.headers(json.dumps(kwargs["json"]).encode())
+        )
 
-def _url(ctx, path):
-    if ctx.obj.pop("tunnel", None):
-        return f"{get(ctx, 'tunnel')['tunnel_url']}/{path}"
-    else:
-        return f"http://{ctx.obj['addr']}:{ctx.obj['port']}/{path}"
+        self.response = requests.request(
+            method, self.base_url + path, **kwargs
+        )
+        if raise_for_status:
+            self.response.raise_for_status()
+        body = self.response.json()
+        return body["result"]
 
+    def hello(self):
+        """send and receive a friendly greeting"""
+        return self._request("GET", "hello")
 
-def get(ctx, path):
-    try:
-        result = requests.get(_url(ctx, path))
-        result.raise_for_status()
-    except Exception as ex:
-        fail(ex)
-    return result.json()["result"]
+    def clear(self):
+        """clear the event buffer"""
+        return self._request("GET", "clear")
 
+    def tunnel_url(self):
+        """return the tunnel url"""
+        return self._request("GET", "tunnel")
 
-def _delete(ctx, path):
-    try:
-        result = requests.delete(_url(ctx, path))
-        result.raise_for_status()
-    except Exception as ex:
-        fail(ex)
-    return result.json()["result"]
+    def buffer(self, enable=None):
+        """set buffer enable"""
+        if enable is None:
+            method = "GET"
+            args = {}
+        else:
+            method = "POST"
+            args = dict(enable=enable)
 
+        return self._request(method, "buffer", json=args)
 
-def post(ctx, path, data={}, headers={}):
-    headers = ctx.obj["auth"].headers(json.dumps(data).encode())
-    try:
-        result = requests.post(_url(ctx, path), json=data, headers=headers)
-        result.raise_for_status()
-    except Exception as ex:
-        fail(ex)
+    def relay(self, url=None, key=None, header=None, enable=None):
+        """update relay configuraton"""
+        args = {}
+        method = "GET"
+        if enable is None and url is not None:
+            enable = True
+        if enable is True:
+            method = "POST"
+            args["url"] = url
+            args["key"] = key
+            args["header"] = header
+        elif enable is False:
+            method = "POST"
+            args["url"] = None
+            args["key"] = None
+            args["header"] = None
 
-    return result.json()["result"]
+        return self._request(method, "relay", json=args)
 
+    def inject(self, event):
+        """process an event as a received callback"""
+        return self._request("POST", "contract/event", json=event)
 
-@click.group
-@click.option(
-    "-a",
-    "--addr",
-    type=str,
-    envvar="WEBHOOK_SERVER_ADDR",
-    default=SERVER_ADDR,
-    show_default=True,
-    show_envvar=True,
-    help="server listen IP addr",
-)
-@click.option(
-    "-p",
-    "--port",
-    type=int,
-    envvar="WEBHOOK_SERVER_PORT",
-    show_default=True,
-    default=SERVER_PORT,
-    show_envvar=True,
-    help="server listen port",
-)
-@click.option(
-    "-t/-T",
-    "--tunnel/--no-tunnel",
-    is_flag=True,
-    default=True,
-    help="enable/disable ngrok tunnel",
-)
-@click.option("-d", "--debug", is_flag=True)
-@click.pass_context
-def webhook(ctx, addr, port, tunnel, debug):
-    """webhook endpoint server commands"""
-    if isinstance(ctx.obj, dict) is False:
-        ctx.obj = dict(ehandler=ExceptionHandler(debug))
-        ctx.obj["debug"] = debug
-    ctx.obj["auth"] = Signature()
-    ctx.obj["addr"] = addr
-    ctx.obj["port"] = port
-    ctx.obj["tunnel"] = tunnel
+    def event(self, event_id):
+        """return event by id"""
+        return self._request("GET", f"event/{event_id}")
 
+    def delete(self, event_id):
+        """delete event by id"""
+        return self._request("DELETE", f"event/{event_id}")
 
-@webhook.command
-@click.option("-q", "--quiet", is_flag=True)
-@click.pass_context
-def ps(ctx, quiet):
-    """test for running server"""
-    if server_running(quiet):
-        ret = 0
-    else:
-        ret = 1
-    sys.exit(ret)
+    def events(self):
+        """return a list of all events"""
+        return self._request("GET", "events")
 
+    def shutdown(self):
+        """request server shutdown"""
+        return self._request("GET", "shutdown")
 
-PATTERN = "'[m]sc.*webhook.*server$'"
-
-
-def server_running(quiet=True):
-    try:
-        run(f"pgrep -f {PATTERN}")
-    except CalledProcessError:
-        return False
-    if not quiet:
-        lines = run(f"pgrep -af {PATTERN}").strip().split("\n")
-        output(lines)
-    return True
-
-
-@webhook.command
-@click.pass_context
-def url(ctx):
-    """output the ngrok public url"""
-    output(get(ctx, "tunnel")["tunnel_url"])
-
-
-@webhook.command
-@click.option("-s", "--set_url", type=str, help="set relay url")
-@click.option("-d", "--disable", is_flag=True, help="disable relay url")
-@click.pass_context
-def relay(ctx, set_url, disable):
-    """output the tunnel url"""
-    if set_url:
-        output(post(ctx, "relay", data=dict(url=set_url)))
-    elif disable:
-        output(post(ctx, "relay", data=dict(url=None)))
-    else:
-        output(get(ctx, "relay"))
-
-
-@webhook.command
-@click.option("-m", "--message", type=str, help="create json message data")
-@click.argument("input", default="-", type=click.File("r"))
-@click.pass_context
-def inject(ctx, message, input):
-    """inject an event"""
-    if message:
-        data = dict(message=message)
-    else:
-        data = json.load(input)
-    output(post(ctx, "inject", data=data))
-
-
-@webhook.command
-@click.argument("event-id", type=str)
-@click.pass_context
-def event(ctx, event_id):
-    """get an event by id"""
-    output(get(ctx, f"event/{event_id}"))
-
-
-@webhook.command
-@click.argument("event-id", type=str)
-@click.pass_context
-def delete(ctx, event_id):
-    """delete an event by id"""
-    output(_delete(ctx, f"event/{event_id}"))
-
-
-@webhook.command
-@click.pass_context
-def clear(ctx):
-    """clear the webhook sever event buffer"""
-    output(get(ctx, "clear"))
-
-
-@webhook.command
-@click.argument("output", default="-", type=click.File("w"))
-@click.pass_context
-def events(ctx, output):
-    """output events received by the webhook server"""
-    json.dump(get(ctx, "events"), output, indent=2)
-    output.write("\n")
-
-
-@webhook.command
-@click.option(
-    "-e",
-    "--endpoint",
-    type=str,
-    envvar="TUNNEL_ENDPOINT",
-    show_envvar=True,
-    default="contract/event",
-)
-@click.argument("input", default="-", type=click.File("r"))
-@click.pass_context
-def call(ctx, endpoint, input):
-    """read json from file or stdin and POST it to the webhook endpoint"""
-    ctx.obj["tunnel"] = True
-    data = json.load(input)
-    output(post(ctx, endpoint, data=data))
-
-
-@webhook.command
-@click.option(
-    "-l",
-    "--logfile",
-    envvar="TUNNEL_LOGFILE",
-    type=click.Path(dir_okay=False, writable=True, path_type=Path),
-)
-@click.option(
-    "-w/-W",
-    "--wait-start/--no-wait-start",
-    is_flag=True,
-    default=True,
-    help="wait for server startup",
-)
-@click.pass_context
-def start(ctx, logfile, wait_start):
-    """start local webhook server process with optional ngrok tunnel"""
-    if server_running():
-        fail("already running")
-    else:
-        click.echo("starting webhook server...", nl=False, err=True)
+    def start(self, logfile=None, wait=True):
+        """start a server process"""
         if logfile is None:
             logfile = DEVNULL
         else:
             logfile = Path(logfile).open("a") or DEVNULL
         cmd = ["msc"]
-        if ctx.obj["debug"]:
+        cmd.extend(["webhook", "--addr", self.addr, "--port", str(self.port)])
+        if self.debug:
             cmd.append("--debug")
-        cmd.extend(
-            [
-                "webhook",
-                "--addr",
-                ctx.obj["addr"],
-                "--port",
-                str(ctx.obj["port"]),
-            ]
-        )
-        if ctx.obj["tunnel"]:
+        if self.tunnel:
             cmd.append("--tunnel")
+        else:
+            cmd.append("--no-tunnel")
+        env = os.environ.copy()
+        if self.enable_buffer:
+            cmd.append("--enable-buffer")
+        else:
+            cmd.append("--disable-buffer")
+        if self.relay_url:
+            cmd.extend(["--relay-url", self.relay_url])
+        if self.relay_header:
+            cmd.extend(["--relay-header", self.relay_header])
+        if self.relay_key:
+            env["WEBHOOK_RELAY_KEY"] = self.relay_key
+        if self.moralis_api_key:
+            env["WEBHOOK_API_KEY"] = self.moralis_api_key
+
+        env["PYTHONUNBUFFERED"] = "1"
+
         cmd.append("server")
 
         debug(f"command: {cmd}")
+        for k, v in env.items():
+            if k.startswith("WEBHOOK"):
+                debug(f"  {k}={v}")
 
-        env = os.environ.copy()
-        env["PYTHONUNBUFFERED"] = "1"
-        try:
-            proc = Popen(
-                cmd,
-                env=env,
-                stderr=STDOUT,
-                stdout=logfile,
-                bufsize=1,
-            )
-        except Exception as ex:
-            fail(ex)
+        self.proc = Popen(
+            cmd,
+            env=env,
+            stderr=STDOUT,
+            stdout=logfile,
+            bufsize=1,
+        )
 
-        if wait_start:
-            while not server_running():
-                if proc.poll() is not None:
-                    click.echo("error")
-                    fail(f"process {proc.args} returned {proc.returncode}")
-                click.echo(".", nl=False, err=True)
+        if wait:
+            timeout = time.time() + PROCESS_START_TIMEOUT
+            while self.server_running() is False:
+                time.sleep(0.25)
+                if time.time() > timeout:
+                    raise TimeoutError
 
-        click.echo("started", err=True)
+        return self.proc
 
+    def processes(self):
+        """return list of server processess"""
+        pattern = f".*webhook.*--port {self.port}.*"
+        procs = []
+        for p in psutil.process_iter():
+            cmdline = " ".join(p.cmdline())
+            if re.match(pattern, cmdline):
+                procs.append(p)
+        return procs
 
-@webhook.command
-@click.pass_context
-def stop(ctx):
-    """stop the webhook server"""
-    if not server_running():
-        fail("not running")
-    else:
-        click.echo(get(ctx, "shutdown"), err=True, nl=False)
-    while server_running():
-        click.echo(".", err=True, nl=False)
-    click.echo("stopped", err=True)
+    def server_running(self):
+        """return bool indicating if server is running"""
+        return bool(self.processes())
 
-
-@webhook.command
-@click.option(
-    "--ngrok-token",
-    type=str,
-    envvar="NGROK_AUTHTOKEN",
-    show_envvar=True,
-    help="ngrok auth token",
-)
-@click.option(
-    "-w",
-    "--workers",
-    type=int,
-    default=1,
-    help="number of worker threads/processes",
-)
-@click.pass_context
-def server(ctx, ngrok_token, workers):
-    """run webhook server process"""
-    from .server import ServerProcess
-
-    ctx.obj["ngrok_token"] = ngrok_token
-    ctx.obj["workers"] = workers
-    ServerProcess(ctx.obj).run()
+    def stop(self, wait=True):
+        """stop a running server"""
+        if self.server_running():
+            self.shutdown()
+            timeout = time.time() + PROCESS_STOP_TIMEOUT
+            while wait and self.server_running():
+                time.sleep(0.25)
+                if time.time() > timeout:
+                    raise TimeoutError

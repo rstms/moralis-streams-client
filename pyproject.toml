@@ -29,6 +29,7 @@ dependencies = [
   "flask",
   "gunicorn",
   "httpx",
+  "psutil",
   "pyngrok",
   "python_dateutil",
   "requests",
@@ -74,5 +75,5 @@ collect_ignore = ['setup.py']
 
 
 [project.scripts]
-msc = "moralis_streams_client:cli"
-webhook = "moralis_streams_client.webhook:webhook"
+msc = "moralis_streams_client.cli:cli"
+webhook = "moralis_streams_client.webhook_cli:webhook"

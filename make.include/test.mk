@@ -1,20 +1,18 @@
 # test - testing with pytest and tox
 
-options ?= -x --log-cli-level=CRITICAL
+options ?= -x $(if $(USE_GAS),,-m "not uses_gas")
 testfiles ?= $(wildcard tests/test_*.py)
 options := $(if $(test),$(options) -k $(test),$(options))
-
-tox_options ?=
 
 
 
 ### run tests;  example: make options=-svvx test=cli test 
-test:
-	env TESTING=1 pytest $(options) $(testfiles)
+test: fmt
+	env TESTING=1 pytest $(options) --log-cli-level=ERROR $(testfiles)
 
 ### run tests; drop into pdb on exceptions or breakpoints
 debug:
-	@$(MAKE) --no-print-directory options="$(options) --log-cli-level=INFO -xvvvs --pdb" test
+	env TESTING=1 pytest $(options) -vvvs --log-cli-level=INFO --pdb $(testfiles)
 
 ### check code coverage quickly with the default Python
 coverage:
@@ -33,7 +31,7 @@ testls:
 tox: .tox 
 .tox: $(src) tox.ini
 	$(call gitclean)
-	env PYTEST_OPTIONS='$(tox_options)' tox
+	env PYTEST_OPTIONS='$(options)' tox
 	@touch $@
 
 # run tox in debug mode

@@ -10,7 +10,8 @@ import pytest
 from click.testing import CliRunner
 
 import moralis_streams_client
-from moralis_streams_client import __version__, cli
+from moralis_streams_client import __version__
+from moralis_streams_client.cli import cli
 
 
 def test_version():
