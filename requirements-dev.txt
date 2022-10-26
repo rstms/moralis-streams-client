@@ -3,10 +3,11 @@ backoff
 black
 bump2version
 coverage
+eth-account
+MoralisSDK
 flake8
 flake8-length
 isort
-MoralisSDK
 pytest
 pytest-datadir
 python-box
