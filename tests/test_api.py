@@ -8,7 +8,6 @@ from pathlib import Path
 
 import MoralisSDK.api
 import pytest
-import yaml
 from backoff import expo, on_exception
 from box import Box, BoxList
 from eth_account import Account

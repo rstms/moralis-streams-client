@@ -12,7 +12,7 @@ install:
 
 ### remove module from the local python environment
 uninstall: 
-	pip install -U pip setuptools wheel flit
+	pip install --upgrade pip setuptools wheel flit
 	pip uninstall -yqq $(module)
 
 

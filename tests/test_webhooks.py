@@ -12,6 +12,11 @@ from moralis_streams_client.webhook import Webhook
 WEBHOOK_TIMEOUT = 5
 
 
+@pytest.fixture(scope="module", autouse=True)
+def webhook_process(module_webhook_process):
+    yield module_webhook_process
+
+
 def test_webhook_hello(webhook, dump):
     ret = webhook.hello()
     assert ret == "Hello, World!"

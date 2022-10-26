@@ -1,26 +1,47 @@
 # streams api client wrapper
 
+import json
+import logging
 import os
 
 from eth_hash.auto import keccak
 from eth_utils import to_hex
 
+from . import settings
+
 
 class Signature:
-    def __init__(self, api_key=None, header="X-Signature"):
-        self.api_key = api_key or os.environ["MORALIS_API_KEY"]
-        self.api_key = self.api_key.encode()
+    def __init__(self, key=None, header="X-Signature"):
+        logger = logging.getLogger("signature")
+        self.debug = logger.debug
+        key = key or str(settings.API_KEY)
+        self.key = self._bytes(key)
         self.header = header
+
+    def _bytes(self, data):
+        if isinstance(data, dict):
+            data = json.dumps(data).encode()
+        if isinstance(data, str):
+            data = data.encode()
+        elif not isinstance(data, bytes):
+            raise TypeError()
+        return data
 
     def validate(self, signature: bytes, body: bytes) -> bool:
         """calculate the sha3 checksum and validate the request"""
-        return signature == self.calculate(body)
+        valid = signature == self.calculate(body)
+        return valid
 
     def calculate(self, body: bytes) -> bytes:
         """calculate the sha3 checksum of body and api_key"""
+        body = self._bytes(body)
+        self.debug(f"calculate: {body=}")
+        body = self._bytes(body)
         s = keccak.new(body)
-        s.update(self.api_key)
-        return to_hex(s.digest())
+        s.update(self.key)
+        ret = to_hex(s.digest())
+        self.debug(f"{ret=}")
+        return ret
 
     def headers(self, body: bytes) -> dict:
         return {self.header: self.calculate(body)}

@@ -9,22 +9,18 @@ from pathlib import Path
 from subprocess import check_call
 from time import sleep
 
-import attr
 import MoralisSDK.api
+import psutil
 import pytest
 import requests
 from ape_apeman import APE
 from eth_hash.auto import keccak
 from eth_utils import to_checksum_address, to_hex
 
-from moralis_streams_client import (
-    MoralisStreamsApi,
-    Signature,
-    Webhook,
-    defaults,
-    server,
-)
+from moralis_streams_client import MoralisStreamsApi, defaults, server
+from moralis_streams_client.signature import Signature
 from moralis_streams_client.tunnel import NgrokTunnel
+from moralis_streams_client.webhook import Webhook
 
 info = logging.info
 
@@ -156,36 +152,67 @@ def wait_for_it():
     return _wait_for_it
 
 
-@pytest.fixture(scope="session", autouse=True)
-def webhook_server():
-    print("starting webhook_server...")
-    kwargs = {
-        "addr": defaults.SERVER_ADDR,
-        "port": defaults.SERVER_PORT,
-        "tunnel": True,
-        "debug": True,
-        "enable_buffer": True,
-    }
-    webhook = Webhook(**kwargs)
-    webhook.start(wait=True, logfile=str(Path(".") / "webhook.log"))
-    check_call(
-        [
-            "wait-for-it",
-            "-s",
-            f"{defaults.SERVER_ADDR}:{defaults.SERVER_PORT}",
-        ]
-    )
-    assert webhook.clear()
-    info(webhook.tunnel_url())
-    procs = webhook.processes()
-    for proc in procs:
-        info(proc)
-    try:
+class WebhookServerProcess:
+    def __init__(
+        self,
+        addr=defaults.SERVER_ADDR,
+        port=defaults.SERVER_PORT,
+        tunnel=True,
+        enable_buffer=True,
+        debug=True,
+        logfile="webhook.log",
+    ):
+        print("starting webhook_server...")
+        self.addr = addr
+        self.port = port
+        self.logfile = logfile
+        self.webhook = Webhook(
+            addr=addr,
+            port=port,
+            tunnel=tunnel,
+            debug=debug,
+            enable_buffer=enable_buffer,
+        )
+
+    def __enter__(self):
+        self.webhook.start(wait=True, logfile=str(Path(".") / self.logfile))
+        check_call(
+            [
+                "wait-for-it",
+                "-s",
+                f"{self.addr}:{self.port}",
+            ]
+        )
+        assert self.webhook.clear()
+        info(self.webhook.tunnel_url())
+        procs = self.webhook.processes()
+        for proc in procs:
+            info(proc)
+        return self.webhook
+
+    def __exit__(self, _type, exc, tb):
+        def webhook_exit(proc):
+            print(f"webhook_server {proc} terminated")
+
+        print("\nstopping webhook_server processes...")
+        self.webhook.stop(wait=True, callback=webhook_exit)
+
+
+@pytest.fixture(scope="module")
+def module_webhook_process():
+    with WebhookServerProcess() as webhook:
         yield webhook
-    finally:
-        pass
-        # webhook.shutdown()
-    print("webhook_server exited")
+
+
+@pytest.fixture
+def webhook_process():
+    with WebhookServerProcess() as webhook:
+        yield webhook
+
+
+@pytest.fixture
+def webhook_process_class():
+    return WebhookServerProcess
 
 
 @pytest.fixture

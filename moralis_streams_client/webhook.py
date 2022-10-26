@@ -197,10 +197,25 @@ class Webhook:
         """return bool indicating if server is running"""
         return bool(self.processes())
 
-    def stop(self, wait=True):
-        """stop a running server"""
+    def stop(self, wait=True, callback=None):
+        """signal running server processes to terminate"""
         if self.server_running():
-            self.shutdown()
+            procs = self.processes()
+            for p in procs:
+                p.terminate()
+
+            if wait:
+                gone, alive = psutil.wait_procs(
+                    self.processes(),
+                    timeout=PROCESS_STOP_TIMEOUT,
+                    callback=callback,
+                )
+                for p in alive:
+                    p.kill()
+
+                if self.server_running():
+                    self.shutdown()
+
             timeout = time.time() + PROCESS_STOP_TIMEOUT
             while wait and self.server_running():
                 time.sleep(0.25)

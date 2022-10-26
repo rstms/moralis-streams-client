@@ -3,8 +3,6 @@
 STREAMS_URL = "https://streams-api.aws-prod-streams-master-1.moralis.io"
 SERVER_ADDR = "127.0.0.1"
 SERVER_PORT = 8080
-RELAY_ID_HEADER = "X-Relay_Id"
-RELAY_KEY_HEADER = "X-Relay-Key"
 QSIZE = 1024
 ROW_LIMIT = 100
 PAGE_LIMIT = 10000

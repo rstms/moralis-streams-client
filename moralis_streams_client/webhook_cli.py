@@ -12,7 +12,7 @@ import requests
 from eth_hash.auto import keccak
 from eth_utils import to_hex
 
-from .defaults import RELAY_KEY_HEADER, SERVER_ADDR, SERVER_PORT
+from . import settings
 from .exception_handler import ExceptionHandler
 from .signature import Signature
 from .webhook import Webhook
@@ -42,7 +42,7 @@ def run(cmd):
     "--addr",
     type=str,
     envvar="WEBHOOK_SERVER_ADDR",
-    default=SERVER_ADDR,
+    default="0.0.0.0",
     show_default=True,
     show_envvar=True,
     help="server listen IP addr",
@@ -53,7 +53,7 @@ def run(cmd):
     type=int,
     envvar="WEBHOOK_SERVER_PORT",
     show_default=True,
-    default=SERVER_PORT,
+    default=8080,
     show_envvar=True,
     help="server listen port",
 )
@@ -85,7 +85,6 @@ def run(cmd):
     "--relay-header",
     type=str,
     envvar="WEBHOOK_RELAY_HEADER",
-    default=RELAY_KEY_HEADER,
     show_envvar=True,
     help="header name for relay API key",
 )
@@ -105,6 +104,14 @@ def run(cmd):
     help="Moralis Streams API key",
 )
 @click.option("-d", "--debug", is_flag=True)
+@click.option(
+    "-l",
+    "--log-level",
+    type=str,
+    default="WARNING",
+    envvar="WEBHOOK_LOG_LEVEL",
+    help="logging level",
+)
 @click.pass_context
 def webhook(
     ctx,
@@ -117,8 +124,14 @@ def webhook(
     relay_header,
     enable_buffer,
     moralis_api_key,
+    log_level,
 ):
     """webhook endpoint server commands"""
+    if debug:
+        log_level = "DEBUG"
+    logging.basicConfig(level=log_level)
+    logger.setLevel(log_level)
+
     if ctx.obj is None:
         ctx.obj = dict(ehandler=ExceptionHandler(debug))
     kwargs = {}
@@ -360,4 +373,4 @@ def server(ctx, ngrok_token, workers):
     config.pop("ehandler")
     config["ngrok_token"] = ngrok_token
     config["workers"] = workers
-    ServerProcess(config).run()
+    ServerProcess(**config).run()

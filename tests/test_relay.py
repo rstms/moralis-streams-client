@@ -8,15 +8,23 @@ from subprocess import run
 from uuid import uuid4
 
 import pytest
+from requests.structures import CaseInsensitiveDict as Headers
 
-from moralis_streams_client.defaults import RELAY_KEY_HEADER
+from moralis_streams_client import settings
+from moralis_streams_client.app import obscure_key
 from moralis_streams_client.webhook import Webhook
 
 EVENT_COUNT = 10
 
 TEST_RELAY_KEY = "test_relay_key"
+RELAY_KEY_HEADER = "X-API-Key"
 RELAY_PORT = 8080
 TARGET_PORT = 8081
+
+
+@pytest.fixture(scope="module", autouse=True)
+def webhook_process(module_webhook_process):
+    yield module_webhook_process
 
 
 @pytest.fixture
@@ -75,7 +83,7 @@ def relay(webhook, verify_webhook):
     assert isinstance(set_result, dict)
     get_result = _relay.relay()
     assert get_result == dict(
-        url=relay_url, header=relay_header, key=relay_key
+        url=relay_url, header=relay_header, key=obscure_key(relay_key)
     )
     try:
         yield _relay
@@ -116,7 +124,7 @@ def test_relay_messages(relay, target, relay_url, relay_key, relay_header):
     assert relay.relay() == dict(
         url=f"http://localhost:{target.port}/contract/event",
         header=relay_header,
-        key=relay_key,
+        key=obscure_key(relay_key),
     )
     assert target.relay() == dict(url=None, header=None, key=None)
 
@@ -145,11 +153,11 @@ def test_relay_messages(relay, target, relay_url, relay_key, relay_header):
         tbody = tev["body"]
         assert sbody == tbody
         assert isinstance(tev["headers"], dict)
-        assert relay_header.lower() in [h.lower() for h in tev["headers"]]
-        assert tev["headers"][relay_header] == relay_key
+        assert relay_header in Headers(tev["headers"])
+        assert Headers(tev["headers"])[relay_header] == relay_key
 
     for event in target_events:
-        event_id = event["headers"]["X-Relay-Id"]
+        event_id = Headers(event["headers"])["x-relay-id"]
         assert relay.event(event_id)
         relay.delete(event_id)
 
@@ -175,7 +183,7 @@ def test_relay_huge(relay, target, relay_url, relay_key, relay_header, dump):
     assert relay.clear()
     assert target.clear()
 
-    HUGE_COUNT = 10_000_000
+    HUGE_COUNT = 10_000
     msg_id = str(uuid4())
     huge = "a" + "u" * HUGE_COUNT + "gh"
     event = dict(test="huge", id=msg_id, castle_of=huge)

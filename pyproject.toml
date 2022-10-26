@@ -1,5 +1,5 @@
 [build-system]
-requires = ["flit_core >=3.2,<4"]
+requires = ["flit_core >=3.2,<4", "eth-utils"]
 build-backend = "flit_core.buildapi"
 requires_python = ">=3.10"
 
@@ -18,22 +18,22 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10"
 ]
-dynamic = ["version", "description"] 
+
+dynamic = ["version", "description"]
 
 dependencies = [
-  "attrs",
-  "certifi",
   "click",
-  "eth-hash",
+  "eth-hash[pycryptodome]",
   "eth-utils",
-  "flask",
-  "gunicorn",
-  "httpx",
+  "FastAPI",
+  "orjson",
   "psutil",
+  "pydantic",
   "pyngrok",
-  "python_dateutil",
   "requests",
-  "toml"
+  "starlette",
+  "toml",
+  "uvicorn",
 ]
 
 [tool.flit.module]
@@ -46,10 +46,11 @@ dev = [
   "black",
   "bump2version",
   "coverage",
+  "eth-account",
+  "MoralisSDK",
   "flake8",
   "flake8-length",
   "isort",
-  "MoralisSDK",
   "pytest",
   "pytest-datadir",
   "python-box",
@@ -77,3 +78,5 @@ collect_ignore = ['setup.py']
 [project.scripts]
 msc = "moralis_streams_client.cli:cli"
 webhook = "moralis_streams_client.webhook_cli:webhook"
+
+
