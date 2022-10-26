@@ -9,11 +9,14 @@ from eth_utils import to_hex
 
 from . import settings
 
+logger = logging.getLogger("signature")
+debug = logger.debug
+error = logger.error
+critical = logger.critical
+
 
 class Signature:
     def __init__(self, key=None, header="X-Signature"):
-        logger = logging.getLogger("signature")
-        self.debug = logger.debug
         key = key or str(settings.API_KEY)
         self.key = self._bytes(key)
         self.header = header
@@ -35,12 +38,12 @@ class Signature:
     def calculate(self, body: bytes) -> bytes:
         """calculate the sha3 checksum of body and api_key"""
         body = self._bytes(body)
-        self.debug(f"calculate: {body=}")
+        debug(f"calculate: {len(body)} bytes")
         body = self._bytes(body)
         s = keccak.new(body)
         s.update(self.key)
         ret = to_hex(s.digest())
-        self.debug(f"{ret=}")
+        debug(f"{ret=}")
         return ret
 
     def headers(self, body: bytes) -> dict:

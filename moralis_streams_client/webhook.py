@@ -53,11 +53,13 @@ class Webhook:
     def _request(self, method, path, **kwargs):
         # generate a signature checksum
         raise_for_status = kwargs.pop("raise_for_status", True)
-        kwargs.setdefault("json", {})
+        kwargs.setdefault("json", None)
         kwargs.setdefault("headers", {})
-        kwargs["headers"].update(
-            self.signature.headers(json.dumps(kwargs["json"]).encode())
-        )
+        if kwargs["json"] is None:
+            body = b""
+        else:
+            body = json.dumps(kwargs["json"]).encode()
+        kwargs["headers"].update(self.signature.headers(body))
 
         self.response = requests.request(
             method, self.base_url + path, **kwargs

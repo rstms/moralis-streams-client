@@ -2,7 +2,7 @@
 
 import atexit
 import time
-from logging import info
+from logging import critical, info
 from pathlib import Path
 from subprocess import run
 from uuid import uuid4
@@ -115,6 +115,7 @@ def target(wait_for_it, verify_webhook):
         _target.relay(enable=False)
         assert _target.relay() == dict(url=None, header=None, key=None)
         assert _target.buffer() is True
+        _target.stop()
 
 
 def test_relay_messages(relay, target, relay_url, relay_key, relay_header):
@@ -179,18 +180,47 @@ def test_relay_id(relay, target, relay_url, relay_key, relay_header, dump):
     target.clear()
 
 
+def _make_huge_event(size):
+    msg_id = str(uuid4())
+    huge = "a" + "u" * size + "gh"
+    event = dict(test="huge", id=msg_id, castle_of=huge)
+    return event
+
+
 def test_relay_huge(relay, target, relay_url, relay_key, relay_header, dump):
     assert relay.clear()
     assert target.clear()
 
-    HUGE_COUNT = 10_000
-    msg_id = str(uuid4())
-    huge = "a" + "u" * HUGE_COUNT + "gh"
-    event = dict(test="huge", id=msg_id, castle_of=huge)
+    event = _make_huge_event(8_000_000)
+
     relay.inject(event)
+
     tevs = target.events()
     assert len(tevs) == 1
-    assert tevs[0]["body"]["id"] == msg_id
-    assert len(tevs[0]["body"]["castle_of"]) == len(huge)
+    assert tevs[0]["body"]["id"] == event["id"]
+    assert len(tevs[0]["body"]["castle_of"]) == len(event["castle_of"])
+    relay.clear()
+    target.clear()
+
+
+def test_relay_recover_huge(
+    relay, target, relay_url, relay_key, relay_header, dump
+):
+    assert relay.clear()
+    assert target.clear()
+
+    event = _make_huge_event(11_000_000)
+
+    with pytest.raises(Exception) as exc:
+        relay.inject(event)
+    info(f"Exception: {exc}")
+
+    event = _make_huge_event(9_000_000)
+    relay.inject(event)
+
+    tevs = target.events()
+    assert len(tevs) == 1
+    assert tevs[0]["body"]["id"] == event["id"]
+    assert len(tevs[0]["body"]["castle_of"]) == len(event["castle_of"])
     relay.clear()
     target.clear()

@@ -20,4 +20,6 @@ PORT = config("WEBHOOK_PORT", cast=int, default=8080)
 TUNNEL = config("WEBHOOK_TUNNEL", cast=bool, default=True)
 NGROK_AUTHTOKEN = config("NGROK_AUTHTOKEN", cast=Secret)
 LOG_LEVEL = config("WEBHOOK_LOG_LEVEL", cast=str, default="WARNING")
-MAX_CONTENT_SIZE = config("WEBHOOK_MAX_CONTENT_SIZE", cast=int, default=1024)
+MAX_CONTENT_SIZE = config(
+    "WEBHOOK_MAX_CONTENT_SIZE", cast=int, default=10_000_000
+)

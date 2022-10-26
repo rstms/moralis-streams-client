@@ -8,7 +8,6 @@ from uuid import UUID, uuid4
 
 import orjson
 import requests
-from content_size_limit_asgi import ContentSizeLimitMiddleware
 from fastapi import (
     BackgroundTasks,
     Body,
@@ -23,9 +22,10 @@ from pydantic import BaseModel, Field
 from starlette.middleware import Middleware
 
 from . import settings
-from .auth import SignatureCheckMiddleware
+from .content_size_limit import ContentSizeLimitMiddleware
 from .event_queue import EventQueue
 from .signature import Signature
+from .validate import validate_signature
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +36,15 @@ error = logger.error
 critical = logger.critical
 
 
-middleware = [
-    Middleware(
-        ContentSizeLimitMiddleware, max_content_size=settings.MAX_CONTENT_SIZE
-    ),
-    Middleware(SignatureCheckMiddleware, signature=Signature()),
-]
-
-app = FastAPI(middleware=middleware)
-
+app = FastAPI(
+    middleware=[
+        Middleware(
+            ContentSizeLimitMiddleware,
+            max_content_size=settings.MAX_CONTENT_SIZE,
+        )
+    ],
+    dependencies=[Depends(validate_signature)],
+)
 
 # models
 
@@ -137,6 +137,7 @@ def obscure_key(key):
 @app.on_event("startup")
 async def startup_event():
     debug(f"{__name__} startup")
+    app.state.signature = Signature()
     if not hasattr(app.state, "config"):
         app.state.config = {}
     if not hasattr(app.state, "tunnel_url"):
