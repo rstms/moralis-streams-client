@@ -58,7 +58,7 @@ class Webhook:
         if kwargs["json"] is None:
             body = b""
         else:
-            body = json.dumps(kwargs["json"]).encode()
+            body = kwargs["json"]
         kwargs["headers"].update(self.signature.headers(body))
 
         self.response = requests.request(

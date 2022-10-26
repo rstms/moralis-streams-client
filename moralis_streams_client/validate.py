@@ -1,5 +1,6 @@
 # streams api client wrapper
 
+import json
 import logging
 from pprint import pformat
 
@@ -36,6 +37,10 @@ async def validate_signature(request: Request):
         raise HTTPException(detail=msg, status_code=codes.BAD_REQUEST)
     else:
         body = await request.body()
+        if len(body) == 0:
+            body = b""
+        else:
+            body = json.dumps(json.loads(body), separators=(",", ":")).encode()
         debug(
             f"validating: {path} type={type(body)} length={len(body)} {request_signature}"
         )

@@ -1,9 +1,13 @@
 # signature tests
 
 import json
+from logging import info
+from pathlib import Path
+from pprint import pformat
 
 import pytest
 
+from moralis_streams_client import settings
 from moralis_streams_client.signature import Signature
 
 
@@ -77,3 +81,30 @@ def test_signature_str_sig(testbytes):
     assert isinstance(sig, str)
     assert s.validate(sig, testbytes)
     assert not s.validate("completely_different", testbytes)
+
+
+def test_signature_sample_event(shared_datadir):
+    event_file = shared_datadir / "event.json"
+    if not event_file.is_file():
+        info("copy a captured moralis streams event to tests/data/event.json")
+        return
+    sample_event = json.loads(event_file.read_text())
+    assert isinstance(sample_event, dict)
+    info(pformat(sample_event))
+
+    sample = sample_event["headers"]["x-signature"]
+    key = str(settings.API_KEY).encode()
+    s = Signature(key)
+    body = sample_event["body"]
+
+    data = body
+    # data=json.dumps(body,separators=(',',':')).encode()
+
+    local = s.calculate(data)
+    headers = s.headers(data)
+
+    info(f"{key=}")
+    info(f"{data=}")
+    info(f"{sample=}")
+    info(f"{local=}")
+    info(f"{headers=}")

@@ -7,6 +7,8 @@ import time
 import pytest
 import requests
 
+from moralis_streams_client import settings
+from moralis_streams_client.signature import Signature
 from moralis_streams_client.webhook import Webhook
 
 WEBHOOK_TIMEOUT = 5
@@ -68,16 +70,12 @@ def test_webhook_queue(webhook, dump, event_keys):
         dump(event)
 
 
-def test_webhook_tunnel(
-    webhook, webhook_tunnel_url, dump, calculate_signature
-):
+def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
     webhook.clear()
     url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
-    headers = {
-        "X-Signature": calculate_signature(json.dumps(payload).encode())
-    }
+    headers = Signature().headers(payload)
     response = requests.post(url, json=payload, headers=headers)
     assert response.ok
     timeout = time.time() + WEBHOOK_TIMEOUT

@@ -224,16 +224,6 @@ def dump():
 
 
 @pytest.fixture
-def calculate_signature(api_key):
-    signature = Signature(api_key)
-
-    def _calculate_signature(body):
-        return signature.calculate(body)
-
-    return _calculate_signature
-
-
-@pytest.fixture
 def webhook_tunnel_url(webhook):
     url = webhook.tunnel_url()
     assert isinstance(url, str)

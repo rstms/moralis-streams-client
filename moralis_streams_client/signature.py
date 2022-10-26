@@ -23,7 +23,7 @@ class Signature:
 
     def _bytes(self, data):
         if isinstance(data, dict):
-            data = json.dumps(data).encode()
+            data = json.dumps(data, separators=(",", ":")).encode()
         if isinstance(data, str):
             data = data.encode()
         elif not isinstance(data, bytes):
@@ -38,7 +38,7 @@ class Signature:
     def calculate(self, body: bytes) -> bytes:
         """calculate the sha3 checksum of body and api_key"""
         body = self._bytes(body)
-        debug(f"calculate: {len(body)} bytes")
+        debug(f"calculate: {len(body)} bytes {body=}")
         body = self._bytes(body)
         s = keccak.new(body)
         s.update(self.key)
