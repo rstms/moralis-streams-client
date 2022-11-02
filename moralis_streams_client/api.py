@@ -50,6 +50,9 @@ class MoralisStreamsApi:
         self._init_region(region)
         if debug is None:
             debug = bool(int(os.environ.get("MORALIS_STREAMS_API_DEBUG", "0")))
+        self.kludge_enabled = bool(
+            int(os.environ.get("MORALIS_STREAMS_API_KLUDGE", "0"))
+        )
         self.debug = debug
 
     def __str__(self):
@@ -105,6 +108,7 @@ class MoralisStreamsApi:
 
     def kludge(self, message):
         """patch buggy return value seen on 2022-10-11 in POST streams/evm/{streamID}"""
+        error(f"kludge: {message=}")
         if "0" in message and "1" in message and message["0"] == "id":
             if self.debug:
                 error('patching "0":"id", "1":"<stream_id>"')
@@ -119,7 +123,8 @@ class MoralisStreamsApi:
             message = response.text
             errors.append(MoralisStreamsResponseFormatError(f"{exc}"))
 
-        message = self.kludge(message)
+        if self.kludge_enabled:
+            message = self.kludge(message)
 
         try:
             response.raise_for_status()

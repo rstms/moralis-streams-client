@@ -38,12 +38,12 @@ class Signature:
     def calculate(self, body: bytes) -> bytes:
         """calculate the sha3 checksum of body and api_key"""
         body = self._bytes(body)
-        #debug(f"calculate: {len(body)} bytes {body=}")
+        # debug(f"calculate: {len(body)} bytes {body=}")
         body = self._bytes(body)
         s = keccak.new(body)
         s.update(self.key)
         ret = to_hex(s.digest())
-        #debug(f"{ret=}")
+        # debug(f"{ret=}")
         return ret
 
     def headers(self, body: bytes) -> dict:
