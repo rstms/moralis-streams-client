@@ -8,6 +8,7 @@ MoralisSDK
 flake8
 flake8-length
 isort
+pdbpp
 pytest
 pytest-datadir
 python-box
