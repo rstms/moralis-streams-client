@@ -9,6 +9,7 @@ from typing import Dict, List
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError
 
+from . import settings
 from .defaults import (
     ACTIVE,
     ERROR,
@@ -42,18 +43,17 @@ class MoralisStreamsApi:
         row_limit=ROW_LIMIT,
         page_limit=PAGE_LIMIT,
     ):
-        self.api_key = api_key or os.environ["MORALIS_API_KEY"]
+        self.api_key = str(settings.MORALIS_API_KEY)
         self.url = url
         self.headers = {"x-api-key": api_key}
         self.page_limit = page_limit
         self.row_limit = row_limit
+        self.debug = debug or settings.MORALIS_STREAMS_API_DEBUG
         self._init_region(region)
-        if debug is None:
-            debug = bool(int(os.environ.get("MORALIS_STREAMS_API_DEBUG", "0")))
-        self.kludge_enabled = bool(
-            int(os.environ.get("MORALIS_STREAMS_API_KLUDGE", "0"))
-        )
-        self.debug = debug
+
+    def _env_flag(self, name, default=False):
+        default = "1" if default else "0"
+        return bool(int(os.environ.get(name, default)))
 
     def __str__(self):
         return self.__repr__()
@@ -116,6 +116,9 @@ class MoralisStreamsApi:
         return message
 
     def _return_result(self, response, require_keys=[]):
+
+        logger.debug(f"_return_result {self}")
+
         errors = []
         try:
             message = response.json()
@@ -123,7 +126,7 @@ class MoralisStreamsApi:
             message = response.text
             errors.append(MoralisStreamsResponseFormatError(f"{exc}"))
 
-        if self.kludge_enabled:
+        if settings.MORALIS_STREAMS_API_PROTOCOL_PATCH:
             message = self.kludge(message)
 
         try:

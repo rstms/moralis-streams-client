@@ -23,3 +23,15 @@ LOG_LEVEL = config("WEBHOOK_LOG_LEVEL", cast=str, default="WARNING")
 MAX_CONTENT_SIZE = config(
     "WEBHOOK_MAX_CONTENT_SIZE", cast=int, default=10_000_000
 )
+
+MORALIS_API_KEY = config("MORALIS_API_KEY", cast=Secret)
+MORALIS_STREAMS_API_DEBUG = config(
+    "MORALIS_STREAMS_API_DEBUG", cast=bool, default=False
+)
+MORALIS_STREAMS_API_PROTOCOL_PATCH = config(
+    "MORALIS_STREAMS_API_PROTOCOL_PATCH", cast=bool, default=False
+)
+
+WEBHOOK_LOG_FORMAT = config(
+    "WEBHOOK_LOG_FORMAT", cast=str, default=defaults.LOG_FORMAT
+)

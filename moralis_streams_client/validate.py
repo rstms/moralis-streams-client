@@ -11,7 +11,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from . import settings
 
 logger = logging.getLogger("signature")
-logger.setLevel("DEBUG")
 debug = logger.debug
 error = logger.error
 critical = logger.critical

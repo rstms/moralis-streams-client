@@ -2,12 +2,15 @@
 
 import logging
 import os
+import sys
 import time
+from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
 
 import MoralisSDK.api
 import pytest
+import starlette.config
 from backoff import expo, on_exception
 from box import Box, BoxList
 from eth_account import Account
@@ -21,14 +24,14 @@ from eth_utils import (
 )
 from ratelimit import RateLimitException, limits
 
-import moralis_streams_client
-from moralis_streams_client import models
+from moralis_streams_client import MoralisStreamsApi, models
 
 # TODO: generate history and multiple streams to ensure enough response data
 
 debug = logging.debug
 info = logging.info
 logging.getLogger("moralis_streams_client.api").setLevel("WARNING")
+logging.getLogger("urllib3.connectionpool").setLevel("WARNING")
 
 
 ETHERSCAN_LIMIT_COUNT = 5

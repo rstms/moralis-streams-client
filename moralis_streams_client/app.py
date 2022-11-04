@@ -3,11 +3,16 @@
 import logging
 import os
 import signal
+import sys
+from copy import copy
+from json.decoder import JSONDecodeError
+from pprint import pformat
 from typing import Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
 import orjson
 import requests
+from asgi_logger import AccessLoggerMiddleware
 from fastapi import (
     BackgroundTasks,
     Body,
@@ -35,13 +40,21 @@ warning = logger.warning
 error = logger.error
 critical = logger.critical
 
+logging.getLogger("uvicorn.access").handlers = []
+logging.getLogger("access").propagate = False
+
+access_log_format = settings.WEBHOOK_LOG_FORMAT
+if bool(access_log_format) is False:
+    access_log_format = None
+
 
 app = FastAPI(
     middleware=[
         Middleware(
             ContentSizeLimitMiddleware,
             max_content_size=settings.MAX_CONTENT_SIZE,
-        )
+        ),
+        Middleware(AccessLoggerMiddleware, format=access_log_format),
     ],
     dependencies=[Depends(validate_signature)],
 )
@@ -136,7 +149,7 @@ def obscure_key(key):
 
 @app.on_event("startup")
 async def startup_event():
-    debug(f"{__name__} startup")
+    info(f"{__name__} startup")
     app.state.signature = Signature()
     if not hasattr(app.state, "config"):
         app.state.config = {}
@@ -148,7 +161,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    debug(f"{__name__} shutdown")
+    info(f"{__name__} shutdown")
 
 
 @app.get("/hello", response_model=MessageResponse)

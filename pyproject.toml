@@ -22,6 +22,7 @@ classifiers = [
 dynamic = ["version", "description"]
 
 dependencies = [
+  "asgi-logger",
   "click",
   "eth-hash[pycryptodome]",
   "eth-utils",
@@ -51,6 +52,7 @@ dev = [
   "flake8",
   "flake8-length",
   "isort",
+  "pdbpp",
   "pytest",
   "pytest-datadir",
   "python-box",

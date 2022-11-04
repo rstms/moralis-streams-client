@@ -4,8 +4,6 @@ options ?= -x $(if $(USE_GAS),,-m "not uses_gas")
 testfiles ?= $(wildcard tests/test_*.py)
 options := $(if $(test),$(options) -k $(test),$(options))
 
-
-
 ### run tests;  example: make options=-svvx test=cli test 
 test: fmt
 	env TESTING=1 pytest $(options) --log-cli-level=ERROR $(testfiles)

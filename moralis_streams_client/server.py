@@ -38,10 +38,10 @@ class ServerProcess:
             )
 
         if self.tunnel is True:
-            print(f"starting ngrok tunnel {self.tunnel=}")
+            info(f"starting ngrok tunnel {self.tunnel=}")
             with NgrokTunnel(self.port, self.token) as tunnel:
                 app.state.tunnel_url = tunnel.public_url
                 return _uvicorn_run()
         else:
-            print(f"ngrok tunnel disabled: {self.tunnel=}")
+            info(f"ngrok tunnel disabled: {self.tunnel=}")
             return _uvicorn_run()

@@ -13,7 +13,7 @@ import MoralisSDK.api
 import psutil
 import pytest
 import requests
-from ape_apeman import APE
+from ape_apeman.context import APE
 from eth_hash.auto import keccak
 from eth_utils import to_checksum_address, to_hex
 
