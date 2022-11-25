@@ -1,4 +1,4 @@
-ape-apeman
+ape-apeman==0.1.22
 backoff
 black
 bump2version

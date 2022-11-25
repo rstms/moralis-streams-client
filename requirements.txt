@@ -1,6 +1,6 @@
 asgi-logger
 click
-eth-hash[pycryptodome]
+pycryptodome
 eth-utils
 FastAPI
 orjson
