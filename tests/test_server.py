@@ -30,7 +30,7 @@ def _do_request(client, signature):
         response = client.request(method, path, headers=headers, json=data)
         assert response.status_code == expect_status
         response_dict = response.json()
-        if response.ok:
+        if response.is_success:
             assert isinstance(response_dict, dict)
             assert set(response_dict.keys()) == set(["result"])
             result = response_dict["result"]
