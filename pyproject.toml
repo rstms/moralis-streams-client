@@ -51,6 +51,7 @@ dev = [
   "MoralisSDK",
   "flake8",
   "flake8-length",
+  "httpx",
   "isort",
   "pdbpp",
   "pytest",
