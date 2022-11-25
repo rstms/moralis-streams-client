@@ -24,6 +24,7 @@ dynamic = ["version", "description"]
 dependencies = [
   "asgi-logger",
   "click",
+  "pycryptodome",
   "eth-hash[pycryptodome]",
   "eth-utils",
   "FastAPI",
