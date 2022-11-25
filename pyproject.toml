@@ -25,7 +25,6 @@ dependencies = [
   "asgi-logger",
   "click",
   "pycryptodome",
-  "eth-hash[pycryptodome]",
   "eth-utils",
   "FastAPI",
   "orjson",
@@ -43,7 +42,7 @@ name = "moralis_streams_client"
 
 [project.optional-dependencies]
 dev = [
-  "ape-apeman",
+  "ape-apeman==0.1.22",
   "backoff",
   "black",
   "bump2version",
