@@ -77,7 +77,7 @@ def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
     payload = {"message": "sent to public url"}
     headers = Signature().headers(payload)
     response = requests.post(url, json=payload, headers=headers)
-    assert response.is_success
+    assert response.ok
     timeout = time.time() + WEBHOOK_TIMEOUT
     events = []
     while len(events) == 0:
