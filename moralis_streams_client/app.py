@@ -34,6 +34,7 @@ from .validate import validate_signature
 
 logger = logging.getLogger(__name__)
 
+logger.setLevel(settings.LOG_LEVEL)
 debug = logger.debug
 info = logger.info
 warning = logger.warning
@@ -222,6 +223,7 @@ async def post_contract_event(
     event: Dict, request: Request, events: EventQueue = Depends(get_event_list)
 ):
     baselen = len(str(request.base_url))
+    debug(f"/contract/event {request}")
 
     event = Event(
         id=str(uuid4()),
