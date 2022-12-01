@@ -11,6 +11,7 @@ httpx
 isort
 pdbpp
 pytest
+pytest-asyncio
 pytest-datadir
 python-box
 ratelimit
