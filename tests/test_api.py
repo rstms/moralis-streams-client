@@ -131,6 +131,7 @@ def background_contract(ape, background_contract_address):
 
 @pytest.mark.uses_gas
 async def test_api_create_stream(
+    webhook_process,
     streams,
     dump,
     chain_id,
@@ -145,11 +146,13 @@ async def test_api_create_stream(
     user_key,
     ape,
     webhook,
-    webhook_tunnel_url,
 ):
-    webhook.clear()
+    await webhook.clear()
 
-    streams_begin = streams.get_streams()
+    webhook_tunnel_url = await webhook.tunnel_url()
+    assert webhook_tunnel_url.startswith("http://")
+
+    streams_begin = await streams.get_streams()
 
     event_abi = ethersieve_contract.contract_type.events[event_name].dict()
     event_topic = to_hex(event_abi_to_log_topic(event_abi))
@@ -249,7 +252,7 @@ async def test_api_create_stream(
     timeout = time.time() + CALLBACK_TIMEOUT
     while len(events) < 3:
         assert time.time() < timeout, "timeout waiting for 3 callback events"
-        all_events = webhook.events()
+        all_events = await webhook.events()
         for event in all_events:
             event_id = event["id"]
             if event_id not in events:

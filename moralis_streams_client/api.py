@@ -98,10 +98,10 @@ class MoralisStreamsApi:
             )
         return self._return_result(response)
 
-    async def _put(self, path, params={}):
+    async def _put(self, path, body={}):
         async with httpx.AsyncClient() as client:
             response = await client.put(
-                self.url + path, headers=self.headers, params=params
+                self.url + path, headers=self.headers, json=body
             )
         return self._return_result(response)
 
