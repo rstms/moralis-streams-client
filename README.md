@@ -3,16 +3,16 @@ moralis-streams-client
 
 OpenAPI client module for moralis streams API
 
-![Image](https://img.shields.io/github/license/rstms/moralis_streams_client)
+![Image](https://img.shields.io/github/license/rstms/moralis-streams-client)
 
-![Image](https://img.shields.io/pypi/v/moralis_streams_client.svg)
+![Image](https://img.shields.io/pypi/v/moralis-streams-client.svg)
 
 
-![Image](https://circleci.com/gh/rstms/moralis_streams_client/tree/master.svg?style=shield)
+![Image](https://circleci.com/gh/rstms/moralis-streams-client/tree/master.svg?style=shield)
 
 ![Image](https://readthedocs.org/projects/moralis-streams-client/badge/?version=latest)
 
-![Image](https://pyup.io/repos/github/rstms/moralis_streams_client/shield.svg)
+![Image](https://pyup.io/repos/github/rstms/moralis-streams-client/shield.svg)
 
 Client module and CLI for the Moralis Streams API
 
