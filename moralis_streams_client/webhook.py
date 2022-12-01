@@ -4,14 +4,16 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
-from subprocess import DEVNULL, STDOUT, CalledProcessError, Popen, check_output
 
+import httpx
 import psutil
-import requests
 
+from . import settings
+from .logconfig import configure_logging
 from .signature import Signature
 
 logger = logging.getLogger(__name__)
@@ -25,32 +27,39 @@ class Webhook:
     def __init__(
         self,
         *,
-        addr="127.0.0.1",
-        port=8080,
-        debug=False,
+        debug=None,
+        addr=None,
+        port=None,
         base_url=None,
-        tunnel=True,
+        tunnel=None,
         relay_url=None,
         relay_key=None,
         relay_header=None,
-        enable_buffer=True,
+        enable_buffer=None,
         moralis_api_key=None,
+        log_level=None,
+        log_file=None,
     ):
-        self.debug = debug
-        self.addr = addr
-        self.port = port
-        base_url = base_url or f"http://{addr}:{port}/"
+        self.debug = settings.DEBUG if debug is None else debug
+        self.addr = addr or settings.ADDR
+        self.port = port or settings.PORT
+        self.tunnel = settings.TUNNEL if tunnel is None else tunnel
+        self.relay_url = relay_url or settings.RELAY_URL
+        self.relay_key = relay_key or settings.RELAY_KEY
+        self.relay_header = relay_header or settings.RELAY_HEADER
+        self.enable_buffer = (
+            settings.BUFFER_ENABLE if enable_buffer is None else enable_buffer
+        )
+        self.moralis_api_key = moralis_api_key or settings.MORALIS_API_KEY
+        self.log_level = log_level or settings.LOG_LEVEL
+        self.log_file = log_file or settings.LOG_FILE
+        base_url = base_url or f"http://{self.addr}:{self.port}/"
         self.base_url = base_url.strip("/") + "/"
-        self.tunnel = tunnel
-        self.relay_url = relay_url
-        self.relay_key = relay_key
-        self.relay_header = relay_header
-        self.enable_buffer = enable_buffer
-        self.moralis_api_key = moralis_api_key
         self.signature = Signature()
         self.proc = None
+        configure_logging()
 
-    def _request(self, method, path, **kwargs):
+    async def _request(self, method, path, **kwargs):
         # generate a signature checksum
         raise_for_status = kwargs.pop("raise_for_status", True)
         kwargs.setdefault("json", None)
@@ -61,27 +70,28 @@ class Webhook:
             body = kwargs["json"]
         kwargs["headers"].update(self.signature.headers(body))
 
-        self.response = requests.request(
-            method, self.base_url + path, **kwargs
-        )
+        async with httpx.AsyncClient() as client:
+            self.response = await client.request(
+                method, self.base_url + path, **kwargs
+            )
         if raise_for_status:
             self.response.raise_for_status()
         body = self.response.json()
         return body["result"]
 
-    def hello(self):
+    async def hello(self):
         """send and receive a friendly greeting"""
-        return self._request("GET", "hello")
+        return await self._request("GET", "hello")
 
-    def clear(self):
+    async def clear(self):
         """clear the event buffer"""
-        return self._request("GET", "clear")
+        return await self._request("GET", "clear")
 
-    def tunnel_url(self):
+    async def tunnel_url(self):
         """return the tunnel url"""
-        return self._request("GET", "tunnel")
+        return await self._request("GET", "tunnel")
 
-    def buffer(self, enable=None):
+    async def buffer(self, enable=None):
         """set buffer enable"""
         if enable is None:
             method = "GET"
@@ -90,9 +100,9 @@ class Webhook:
             method = "POST"
             args = dict(enable=enable)
 
-        return self._request(method, "buffer", json=args)
+        return await self._request(method, "buffer", json=args)
 
-    def relay(self, url=None, key=None, header=None, enable=None):
+    async def relay(self, url=None, key=None, header=None, enable=None):
         """update relay configuraton"""
         args = {}
         method = "GET"
@@ -109,117 +119,111 @@ class Webhook:
             args["key"] = None
             args["header"] = None
 
-        return self._request(method, "relay", json=args)
+        return await self._request(method, "relay", json=args)
 
-    def inject(self, event):
+    async def inject(self, event):
         """process an event as a received callback"""
-        return self._request("POST", "contract/event", json=event)
+        return await self._request("POST", "contract/event", json=event)
 
-    def event(self, event_id):
+    async def event(self, event_id):
         """return event by id"""
-        return self._request("GET", f"event/{event_id}")
+        return await self._request("GET", f"event/{event_id}")
 
-    def delete(self, event_id):
+    async def delete(self, event_id):
         """delete event by id"""
-        return self._request("DELETE", f"event/{event_id}")
+        return await self._request("DELETE", f"event/{event_id}")
 
-    def events(self):
+    async def events(self):
         """return a list of all events"""
-        return self._request("GET", "events")
+        return await self._request("GET", "events")
 
-    def shutdown(self):
+    async def shutdown(self):
         """request server shutdown"""
-        return self._request("GET", "shutdown")
+        return await self._request("GET", "shutdown")
 
-    def start(self, logfile=None, wait=True):
+    async def start(self, wait=True, log_file=None):
         """start a server process"""
-        if logfile is None:
-            logfile = DEVNULL
-        else:
-            logfile = Path(logfile).open("a") or DEVNULL
-        cmd = ["msc"]
-        cmd.extend(["webhook", "--addr", self.addr, "--port", str(self.port)])
-        if self.debug:
-            cmd.append("--debug")
-        if self.tunnel:
-            cmd.append("--tunnel")
-        else:
-            cmd.append("--no-tunnel")
         env = os.environ.copy()
-        if self.enable_buffer:
-            cmd.append("--enable-buffer")
-        else:
-            cmd.append("--disable-buffer")
+
+        if log_file:
+            self.log_file = log_file
+
+        env["WEBHOOK_ADDR"] = self.addr
+        env["WEBHOOK_PORT"] = str(self.port)
+        env["WEBHOOK_LOG_FILE"] = str(self.log_file)
+        env["WEBHOOK_LOG_LEVEL"] = str(self.log_level)
+        env["WEBHOOK_DEBUG"] = "1" if self.debug else "0"
+        env["WEBHOOK_TUNNEL"] = "1" if self.tunnel else "0"
+        env["WEBHOOK_BUFFER_ENABLE"] = "1" if self.enable_buffer else "0"
         if self.relay_url:
-            cmd.extend(["--relay-url", self.relay_url])
+            env["WEBHOOOK_RELAY_URL"] = self.relay_url
         if self.relay_header:
-            cmd.extend(["--relay-header", self.relay_header])
+            env["WEBHOOOK_RELAY_HEADER"] = self.relay_header
         if self.relay_key:
-            env["WEBHOOK_RELAY_KEY"] = self.relay_key
+            env["WEBHOOK_RELAY_KEY"] = str(self.relay_key)
         if self.moralis_api_key:
-            env["WEBHOOK_API_KEY"] = self.moralis_api_key
+            env["WEBHOOK_API_KEY"] = str(self.moralis_api_key)
 
-        env["PYTHONUNBUFFERED"] = "1"
-
-        cmd.append("server")
-
-        debug(f"command: {cmd}")
+        cmd = ["webhook-server", "--port", str(self.port)]
+        debug(f"{cmd=}")
         for k, v in env.items():
             if k.startswith("WEBHOOK"):
                 debug(f"  {k}={v}")
 
-        self.proc = Popen(
+        pid = subprocess.Popen(
             cmd,
             env=env,
-            stderr=STDOUT,
-            stdout=logfile,
-            bufsize=1,
-        )
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.DEVNULL,
+            close_fds=True,
+        ).pid
+        debug(f"{pid=}")
 
         if wait:
             timeout = time.time() + PROCESS_START_TIMEOUT
-            while self.server_running() is False:
+            while await self.server_running() is False:
                 time.sleep(0.25)
                 if time.time() > timeout:
                     raise TimeoutError
+        return pid
 
-        return self.proc
-
-    def processes(self):
+    async def processes(self):
         """return list of server processess"""
         pattern = f".*webhook.*--port {self.port}.*"
         procs = []
         for p in psutil.process_iter():
             cmdline = " ".join(p.cmdline())
             if re.match(pattern, cmdline):
+                debug(f"process: {p}")
                 procs.append(p)
         return procs
 
-    def server_running(self):
+    async def server_running(self):
         """return bool indicating if server is running"""
-        return bool(self.processes())
+        return bool(await self.processes())
 
-    def stop(self, wait=True, callback=None):
+    async def stop(self, wait=True, callback=None):
         """signal running server processes to terminate"""
-        if self.server_running():
-            procs = self.processes()
+        if await self.server_running():
+            procs = await self.processes()
             for p in procs:
+                debug(f"terminate: {p}")
                 p.terminate()
 
             if wait:
                 gone, alive = psutil.wait_procs(
-                    self.processes(),
+                    await self.processes(),
                     timeout=PROCESS_STOP_TIMEOUT,
                     callback=callback,
                 )
                 for p in alive:
                     p.kill()
 
-                if self.server_running():
-                    self.shutdown()
+                if await self.server_running():
+                    await self.shutdown()
 
             timeout = time.time() + PROCESS_STOP_TIMEOUT
-            while wait and self.server_running():
+            while wait and await self.server_running():
                 time.sleep(0.25)
                 if time.time() > timeout:
                     raise TimeoutError

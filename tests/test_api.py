@@ -130,7 +130,7 @@ def background_contract(ape, background_contract_address):
 
 
 @pytest.mark.uses_gas
-def test_api_create_stream(
+async def test_api_create_stream(
     streams,
     dump,
     chain_id,
@@ -156,7 +156,7 @@ def test_api_create_stream(
     contract_abi = ethersieve_contract.contract_type.dict()["abi"]
 
     stream = Box(
-        streams.create_stream(
+        await streams.create_stream(
             webhook_url=webhook_tunnel_url + "/contract/event",
             description="moralis_streams_client testing stream",
             tag="msc_test",
@@ -175,7 +175,9 @@ def test_api_create_stream(
     dump(f"{stream.status=}")
     dump(f"{stream.statusMessage=}")
     address_added = Box(
-        streams.add_address_to_stream(stream.id, [ethersieve_contract.address])
+        await streams.add_address_to_stream(
+            stream.id, [ethersieve_contract.address]
+        )
     )
     assert isinstance(address_added, dict)
     dump(address_added)
@@ -255,7 +257,7 @@ def test_api_create_stream(
                 info(f"{event_id=}")
         time.sleep(1)
 
-    events = webhook.events()
+    events = await webhook.events()
     assert isinstance(events, list)
     for event in events:
         assert isinstance(event, dict)
@@ -273,83 +275,83 @@ def test_api_create_stream(
             e["txs"][0]["toAddress"], ethersieve_contract.address
         )
 
-    result = Box(streams.delete_stream(stream.id))
+    result = Box(await streams.delete_stream(stream.id))
     assert result.id == stream.id
 
-    streams_end = streams.get_streams()
+    streams_end = await streams.get_streams()
 
     assert len(streams_begin) == len(streams_end)
 
 
-def test_api_get_streams_default(streams):
-    all_streams = streams.get_streams()
+async def test_api_get_streams_default(streams):
+    all_streams = await streams.get_streams()
     assert isinstance(all_streams, list)
     for i, stream in enumerate(all_streams):
         assert isinstance(stream, dict)
         info(f"{i}: {stream['id']}")
 
 
-def test_api_get_streams_row_limit(streams, monkeypatch):
+async def test_api_get_streams_row_limit(streams, monkeypatch):
     # set low row limit to ensure paging
     monkeypatch.setattr(streams, "row_limit", 3)
-    streams = streams.get_streams()
+    streams = await streams.get_streams()
     assert isinstance(streams, list)
     for i, stream in enumerate(streams):
         assert isinstance(stream, dict)
         info(f"{i}: {stream['id']}")
 
 
-def test_api_get_streams_row_page_limit(streams, monkeypatch):
+async def test_api_get_streams_row_page_limit(streams, monkeypatch):
     # set low row and page limit to ensure paging
     monkeypatch.setattr(streams, "row_limit", 2)
     monkeypatch.setattr(streams, "page_limit", 2)
-    all_streams = streams.get_streams()
+    all_streams = await streams.get_streams()
     assert isinstance(all_streams, list)
     for i, stream in enumerate(all_streams):
         assert isinstance(stream, dict)
         info(f"{i}: {stream['id']}")
 
 
-def test_api_get_history_default(streams):
-    history_events = streams.get_history()
+async def test_api_get_history_default(streams):
+    history_events = await streams.get_history()
     assert isinstance(history_events, list)
     for i, history_event in enumerate(history_events):
         assert isinstance(history_event, dict)
         info(f"{i}: {history_event['id']}")
 
 
-def test_api_get_history_row_limit(streams, monkeypatch):
+async def test_api_get_history_row_limit(streams, monkeypatch):
     # set low row limit to ensure paging
     monkeypatch.setattr(streams, "row_limit", 3)
-    history_events = streams.get_history()
+    history_events = await streams.get_history()
     assert isinstance(history_events, list)
     for i, history_event in enumerate(history_events):
         assert isinstance(history_event, dict)
         info(f"{i}: {history_event['id']}")
 
 
-def test_api_get_history_row_page_limit(streams, monkeypatch):
+async def test_api_get_history_row_page_limit(streams, monkeypatch):
     # set low row and page limit to ensure paging
     monkeypatch.setattr(streams, "row_limit", 3)
     monkeypatch.setattr(streams, "page_limit", 2)
-    history_events = streams.get_history()
+    history_events = await streams.get_history()
     assert isinstance(history_events, list)
     for i, history_event in enumerate(history_events):
         assert isinstance(history_event, dict)
         info(f"{i}: {history_event['id']}")
 
 
-def test_api_delete_all_streams(streams, dump):
-    all_streams = streams.get_streams()
+async def test_api_delete_all_streams(streams, dump):
+    all_streams = await streams.get_streams()
     assert isinstance(all_streams, list)
     for stream in all_streams:
         assert isinstance(stream, dict)
         stream_id = stream["id"]
         dump(f"deleting stream {stream_id}")
-        result = streams.delete_stream(stream_id)
+        result = await streams.delete_stream(stream_id)
         assert isinstance(result, dict)
         assert result["id"] == stream_id
 
-    all_streams = streams.get_streams()
+    all_streams = await streams.get_streams()
     assert isinstance(all_streams, list)
     assert len(all_streams) == 0

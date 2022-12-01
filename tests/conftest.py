@@ -1,18 +1,18 @@
 # common test fixtures
 
+import asyncio
 import json
 import logging
 import multiprocessing as mp
 import os
 import queue
 from pathlib import Path
-from subprocess import check_call
-from time import sleep
+from subprocess import run
+from time import sleep, time
 
 import MoralisSDK.api
 import psutil
 import pytest
-import requests
 from ape_apeman.context import APE
 from eth_hash.auto import keccak
 from eth_utils import to_checksum_address, to_hex
@@ -28,6 +28,30 @@ ECOSYSTEM = "ethereum"
 NETWORK = "goerli"
 PROVIDER = "alchemy"
 CHAIN_ID = "0x5"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def assert_startup_procs():
+    assert (
+        run(["pgrep", "ngrok"]).returncode != 0
+    ), "ngrok processs running before test"
+    assert (
+        run(["pgrep", "webhook-server"]).returncode != 0
+    ), "webhook process running before test"
+    try:
+        yield True
+    finally:
+        pass
+        # run(["pkill", "ngrok"], check=False)
+        # run(["pkill", "msc"], check=False)
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.fixture
@@ -138,18 +162,17 @@ def background_contract_address():
     return config("BACKGROUND_CONTRACT_ADDRESS")
 
 
-@pytest.fixture(scope="session")
-def wait_for_it():
-    def _wait_for_it(address, port):
-        check_call(
-            [
-                "wait-for-it",
-                "-s",
-                f"{address}:{port}",
-            ]
-        )
+def is_ok(response):
+    return not response.is_error
 
-    return _wait_for_it
+
+def wait_for_it(address, port, timeout=15):
+    time_expired = time() + timeout
+    while (
+        run(["nc", "-z", str(address), str(port)], check=False).returncode != 0
+    ):
+        assert time() < time_expired
+        sleep(1)
 
 
 class WebhookServerProcess:
@@ -160,12 +183,12 @@ class WebhookServerProcess:
         tunnel=True,
         enable_buffer=True,
         debug=True,
-        logfile="webhook.log",
+        log_file="webhook.log",
     ):
         print("starting webhook_server...")
         self.addr = addr
         self.port = port
-        self.logfile = logfile
+        self.log_file = log_file
         self.webhook = Webhook(
             addr=addr,
             port=port,
@@ -174,39 +197,29 @@ class WebhookServerProcess:
             enable_buffer=enable_buffer,
         )
 
-    def __enter__(self):
-        self.webhook.start(wait=True, logfile=str(Path(".") / self.logfile))
-        check_call(
-            [
-                "wait-for-it",
-                "-s",
-                f"{self.addr}:{self.port}",
-            ]
+    async def __aenter__(self):
+        await self.webhook.start(
+            wait=True, log_file=str(Path(".") / self.log_file)
         )
-        assert self.webhook.clear()
-        info(self.webhook.tunnel_url())
-        procs = self.webhook.processes()
+        wait_for_it(self.addr, self.port)
+        assert await self.webhook.clear()
+        info(await self.webhook.tunnel_url())
+        procs = await self.webhook.processes()
         for proc in procs:
             info(proc)
         return self.webhook
 
-    def __exit__(self, _type, exc, tb):
+    async def __aexit__(self, _type, exc, tb):
         def webhook_exit(proc):
             print(f"webhook_server {proc} terminated")
 
         print("\nstopping webhook_server processes...")
-        self.webhook.stop(wait=True, callback=webhook_exit)
-
-
-@pytest.fixture(scope="module")
-def module_webhook_process():
-    with WebhookServerProcess() as webhook:
-        yield webhook
+        await self.webhook.stop(wait=True, callback=webhook_exit)
 
 
 @pytest.fixture
-def webhook_process():
-    with WebhookServerProcess() as webhook:
+async def webhook_process():
+    async with WebhookServerProcess() as webhook:
         yield webhook
 
 
@@ -224,8 +237,8 @@ def dump():
 
 
 @pytest.fixture
-def webhook_tunnel_url(webhook):
-    url = webhook.tunnel_url()
+async def webhook_tunnel_url(webhook):
+    url = await webhook.tunnel_url()
     assert isinstance(url, str)
     assert url.startswith("http://")
     return url

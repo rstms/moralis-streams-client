@@ -10,9 +10,8 @@ from pprint import pformat
 from typing import Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
+import httpx
 import orjson
-import requests
-from asgi_logger import AccessLoggerMiddleware
 from fastapi import (
     BackgroundTasks,
     Body,
@@ -41,21 +40,14 @@ warning = logger.warning
 error = logger.error
 critical = logger.critical
 
-logging.getLogger("uvicorn.access").handlers = []
-logging.getLogger("access").propagate = False
-
-access_log_format = settings.WEBHOOK_LOG_FORMAT
-if bool(access_log_format) is False:
-    access_log_format = None
-
+# logging.getLogger("uvicorn.access").handlers = []
 
 app = FastAPI(
     middleware=[
         Middleware(
             ContentSizeLimitMiddleware,
             max_content_size=settings.MAX_CONTENT_SIZE,
-        ),
-        Middleware(AccessLoggerMiddleware, format=access_log_format),
+        )
     ],
     dependencies=[Depends(validate_signature)],
 )
@@ -76,7 +68,12 @@ async def get_event_list():
 
 
 def orjson_dumps(v, *, default):
-    return orjson.dumps(v, default=default).decode()
+    def _decoder(obj):
+        if isinstance(obj, httpx.URL):
+            return str(obj)
+        raise TypeError
+
+    return orjson.dumps(v, default=_decoder).decode()
 
 
 class VBaseModel(BaseModel):
@@ -167,7 +164,7 @@ async def shutdown_event():
 
 @app.get("/hello", response_model=MessageResponse)
 async def get_hello():
-    return MessageResponse(result="Hello, World!")
+    return MessageResponse(result="Hello, Webhook!")
 
 
 # @app.get("/tunnel", response_model=MessageResponse)
@@ -232,18 +229,18 @@ async def post_contract_event(
         headers=dict(request.headers),
         body=event,
     )
-    event_id = events.append(event)
+    event_id = await events.append(event)
     return EventResponse(result=str(event_id))
 
 
 @app.get("/events", response_model=EventsResponse)
 async def get_events(events: EventQueue = Depends(get_event_list)):
-    return EventsResponse(result=events.list())
+    return EventsResponse(result=await events.list())
 
 
 @app.get("/clear", response_model=MessageResponse)
 async def get_clear(events: EventQueue = Depends(get_event_list)):
-    return MessageResponse(result=events.clear())
+    return MessageResponse(result=await events.clear())
 
 
 @app.get("/event/{event_id}", response_model=EventResponse)
@@ -252,9 +249,9 @@ async def get_event(
     event_id: UUID,
     events: EventQueue = Depends(get_event_list),
 ):
-    event = events.lookup(event_id, delete=False)
+    event = await events.lookup(event_id, delete=False)
     if event is None:
-        response.status_code = requests.codes.NOT_FOUND
+        response.status_code = httpx.codes.NOT_FOUND
     return EventResponse(result=event)
 
 
@@ -264,9 +261,9 @@ async def delete_event(
     event_id: UUID,
     events: EventQueue = Depends(get_event_list),
 ):
-    event = events.lookup(event_id, delete=True)
+    event = await events.lookup(event_id, delete=True)
     if event is None:
-        response.status_code = requests.codes.NOT_FOUND
+        response.status_code = httpx.codes.NOT_FOUND
     return EventResponse(result=event)
 
 

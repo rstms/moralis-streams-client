@@ -12,4 +12,5 @@ ACTIVE = "active"
 PAUSED = "paused"
 ERROR = "error"
 STATUS_CHOICES = [ACTIVE, PAUSED, ERROR]
-LOG_FORMAT = "%(h)s %(m)s %(U)s %(q)s %({content-type}i)s %(b)s [%(s)s %(st)s %({content-type}o)s %({headers})s %(B)s]"
+ACCESS_LOG_FORMAT = "ACCESS_LOG: %(h)s %(m)s %(U)s %(q)s %({content-type}i)s %(b)s [%(s)s %(st)s %({content-type}o)s %({headers})s %(B)s]"
+LOG_FORMAT = "%(levelname)s %(name)s.%(funcName)s: %(message)s [%(filename)s:%(lineno)s]"

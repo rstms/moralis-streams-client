@@ -7,11 +7,18 @@ import os
 from pyngrok import ngrok
 
 
+def ngrok_reaper():
+    ngrok.kill()
+
+
 class NgrokTunnel:
 
     tunnel = None
 
-    def __init__(self, port=None, token=None):
+    def __init__(self, port=None, token=None, kill_on_close=True):
+        self.kill_on_close = kill_on_close
+        if kill_on_close:
+            atexit.register(ngrok_reaper)
         if self.__class__.tunnel is None:
             logging.debug("Connecting ngrok tunnel...")
             token = token or os.environ["NGROK_AUTHTOKEN"]
@@ -34,3 +41,5 @@ class NgrokTunnel:
         logging.debug(f"Disconnecting ngrok tunnel: {url}")
         ngrok.disconnect(url)
         self.__class__.tunnel = None
+        if self.kill_on_close:
+            ngrok.kill()

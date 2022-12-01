@@ -1,8 +1,7 @@
 import collections
 import logging
 
-import requests
-from requests.structures import CaseInsensitiveDict
+import httpx
 
 from . import defaults, settings
 
@@ -21,10 +20,10 @@ class EventQueue:
         self.relay_key = str(settings.RELAY_KEY)
         self.relay_id_header = settings.RELAY_ID_HEADER
 
-    def append(self, event):
+    async def append(self, event):
         debug("append")
         if self.relay_url:
-            _response = self.forward(event)
+            _response = await self.forward(event)
             event.relay = dict(
                 url=_response.url,
                 status_code=_response.status_code,
@@ -37,18 +36,21 @@ class EventQueue:
             self.events.append(event)
         return event.id
 
-    def forward(self, event):
+    async def forward(self, event):
         debug("forward")
         headers = event.headers
         if self.relay_header and self.relay_key:
             headers[self.relay_header] = self.relay_key
         headers[self.relay_id_header] = str(event.id)
         debug(f"post({self.relay_url} {headers} {event.body})")
-        ret = requests.post(self.relay_url, headers=headers, json=event.body)
+        async with httpx.AsyncClient() as client:
+            ret = await client.post(
+                self.relay_url, headers=headers, json=event.body
+            )
         debug(f"ret={ret}")
         return ret
 
-    def list(self):
+    async def list(self):
         # create a list from the event_queue, preserving order
         debug("list")
         ret = []
@@ -60,12 +62,12 @@ class EventQueue:
             pass
         return ret
 
-    def clear(self):
+    async def clear(self):
         debug("clear")
         self.events.clear()
         return "cleared"
 
-    def lookup(self, event_id, delete):
+    async def lookup(self, event_id, delete):
         debug("lookup")
         tq = self.events.copy()
         if delete:

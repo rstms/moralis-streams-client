@@ -4,41 +4,44 @@ import json
 import logging
 import time
 
+import httpx
 import pytest
-import requests
 
 from moralis_streams_client import settings
 from moralis_streams_client.signature import Signature
 from moralis_streams_client.webhook import Webhook
 
+from .conftest import WebhookServerProcess, is_ok
+
 WEBHOOK_TIMEOUT = 5
 
 
 @pytest.fixture(scope="module", autouse=True)
-def webhook_process(module_webhook_process):
-    yield module_webhook_process
+async def webhook_process():
+    async with WebhookServerProcess() as webhook:
+        yield webhook
 
 
-def test_webhook_hello(webhook, dump):
-    ret = webhook.hello()
-    assert ret == "Hello, World!"
+async def test_webhook_hello(webhook, dump):
+    ret = await webhook.hello()
+    assert ret == "Hello, Webhook!"
     dump(ret)
 
 
-def test_webhook_clear(webhook, dump):
-    ret = webhook.clear()
+async def test_webhook_clear(webhook, dump):
+    ret = await webhook.clear()
     assert ret == "cleared"
     dump(ret)
 
 
-def test_webhook_events(webhook, dump):
-    ret = webhook.events()
+async def test_webhook_events(webhook, dump):
+    ret = await webhook.events()
     dump(ret)
 
 
-def test_webhook_queue(webhook, dump, event_keys):
-    webhook.clear()
-    ret1 = webhook.inject(
+async def test_webhook_queue(webhook, dump, event_keys):
+    await webhook.clear()
+    ret1 = await webhook.inject(
         dict(
             int_data=1,
             str_data="some_string_1",
@@ -46,7 +49,7 @@ def test_webhook_queue(webhook, dump, event_keys):
         ),
     )
     assert ret1
-    ret2 = webhook.inject(
+    ret2 = await webhook.inject(
         dict(
             int_data=2,
             str_data="some_string_2",
@@ -54,7 +57,7 @@ def test_webhook_queue(webhook, dump, event_keys):
         ),
     )
     assert ret2
-    ret3 = webhook.inject(
+    ret3 = await webhook.inject(
         dict(
             int_data=2,
             str_data="some_string_3",
@@ -62,7 +65,7 @@ def test_webhook_queue(webhook, dump, event_keys):
         ),
     )
     assert ret3
-    events = webhook.events()
+    events = await webhook.events()
     assert isinstance(events, list)
     for event in events:
         assert isinstance(event, dict)
@@ -70,14 +73,15 @@ def test_webhook_queue(webhook, dump, event_keys):
         dump(event)
 
 
-def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
-    webhook.clear()
+async def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
+    await webhook.clear()
     url = webhook_tunnel_url + "/contract/event"
     logging.info(f"posting to url {url}")
     payload = {"message": "sent to public url"}
     headers = Signature().headers(payload)
-    response = requests.post(url, json=payload, headers=headers)
-    assert response.ok
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=payload, headers=headers)
+    assert is_ok(response)
     timeout = time.time() + WEBHOOK_TIMEOUT
     events = []
     while len(events) == 0:
@@ -85,7 +89,7 @@ def test_webhook_tunnel(webhook, webhook_tunnel_url, dump):
         assert (
             time.time() < timeout
         ), "timeout waiting for webhook event callback"
-        events = webhook.events()
+        events = await webhook.events()
         assert isinstance(events, list)
     assert len(events) == 1
     assert events[0]["body"] == payload

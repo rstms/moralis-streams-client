@@ -4,7 +4,6 @@ import json
 import logging
 
 from fastapi import HTTPException
-from requests import codes
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware

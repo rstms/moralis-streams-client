@@ -5,7 +5,7 @@ import logging
 from pprint import pformat
 
 from fastapi import HTTPException, Request
-from requests import codes
+from httpx import codes
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import settings

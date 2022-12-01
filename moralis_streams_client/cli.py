@@ -4,11 +4,12 @@ import json
 import logging
 import sys
 
-import click
+import asyncclick as click
 
 from .api import MoralisStreamsApi
 from .defaults import REGION_CHOICES, STATUS_CHOICES, STREAMS_URL
 from .exception_handler import ExceptionHandler
+from .logconfig import configure_logging
 from .version import __timestamp__, __version__
 from .webhook_cli import webhook
 
@@ -63,22 +64,16 @@ debug = logger.debug
 )
 @click.option("-v", "--verbose", is_flag=True, help="output more detail")
 @click.pass_context
-def cli(ctx, url, key, debug, verbose, row_limit, page_limit):
+async def cli(ctx, url, key, debug, verbose, row_limit, page_limit):
     """Moralis Streams API CLI"""
     if debug:
         level = logging.DEBUG
-        if not verbose:
-            logging.getLogger("urllib3.connectionpool").setLevel(
-                logging.WARNING
-            )
-
     elif verbose:
         level = logging.INFO
     else:
         level = logging.WARNING
-    logging.basicConfig(
-        level=level, handlers=[logging.StreamHandler(sys.stderr)]
-    )
+
+    configure_logging(log_level=level)
 
     info(header)
 
@@ -110,9 +105,9 @@ def output(result):
 
 @cli.command
 @click.pass_context
-def get_stats(ctx):
+async def get_stats(ctx):
     """output beta statistics"""
-    output(ctx.obj["api"].get_stats())
+    output(await ctx.obj["api"].get_stats())
 
 
 @cli.command
@@ -123,32 +118,32 @@ def get_stats(ctx):
     help="exclude payload in response",
 )
 @click.pass_context
-def get_history(ctx, exclude_payload):
+async def get_history(ctx, exclude_payload):
     """output event history"""
-    output(ctx.obj["api"].get_history(exclude_payload=exclude_payload))
+    output(await ctx.obj["api"].get_history(exclude_payload=exclude_payload))
 
 
 @cli.command
 @click.argument("event-id", type=str)
 @click.pass_context
-def replay_history(ctx, event_id):
+async def replay_history(ctx, event_id):
     """request resend of history event"""
-    output(ctx.obj["api"].replay_history(event_id))
+    output(await ctx.obj["api"].replay_history(event_id))
 
 
 @cli.command
 @click.pass_context
-def get_settings(ctx):
+async def get_settings(ctx):
     """get settings"""
-    output(ctx.obj["api"].get_settings())
+    output(await ctx.obj["api"].get_settings())
 
 
 @cli.command
 @click.pass_context
 @click.argument("region", type=click.Choice(REGION_CHOICES))
-def set_settings(ctx, region):
+async def set_settings(ctx, region):
     """set settings"""
-    output(ctx.obj["api"].set_settings(region))
+    output(await ctx.obj["api"].set_settings(region))
 
 
 @cli.command
@@ -203,7 +198,7 @@ def set_settings(ctx, region):
 @click.argument("description", type=str)
 @click.argument("tag", type=str)
 @click.pass_context
-def create_stream(
+async def create_stream(
     ctx,
     topic,
     all_addresses,
@@ -220,7 +215,7 @@ def create_stream(
     """create new stream"""
 
     api = ctx.obj["api"]
-    ret = api.create_stream(
+    ret = await api.create_stream(
         webhook_url=webhook_url,
         description=description,
         tag=tag,
@@ -246,10 +241,10 @@ def create_stream(
     help="address to add (multiples ok)",
 )
 @click.pass_context
-def add_address_to_stream(ctx, stream_id, address):
+async def add_address_to_stream(ctx, stream_id, address):
     """add one or more addresses to the stream identified by stream-id"""
     api = ctx.obj["api"]
-    ret = api.add_address_to_stream(stream_id, list(address))
+    ret = await api.add_address_to_stream(stream_id, list(address))
     output(ret)
 
 
@@ -257,30 +252,30 @@ def add_address_to_stream(ctx, stream_id, address):
 @click.argument("stream-id", type=str)
 @click.option("-a", "--address", type=str, help="address to remove")
 @click.pass_context
-def delete_address_from_stream(ctx, stream_id, address):
+async def delete_address_from_stream(ctx, stream_id, address):
     """delete an address from the stream identified by stream-id"""
     api = ctx.obj["api"]
-    ret = api.delete_addresses_from_stream(stream_id, address)
+    ret = await api.delete_addresses_from_stream(stream_id, address)
     output(ret)
 
 
 @cli.command
 @click.argument("stream-id", type=str)
 @click.pass_context
-def delete_stream(ctx, stream_id):
+async def delete_stream(ctx, stream_id):
     """delete stream identified by stream-id"""
     api = ctx.obj["api"]
-    ret = api.delete_stream(stream_id)
+    ret = await api.delete_stream(stream_id)
     output(ret)
 
 
 @cli.command
 @click.argument("stream-id", type=str)
 @click.pass_context
-def get_addresses(ctx, stream_id):
+async def get_addresses(ctx, stream_id):
     """list addresses associated with the stream identified by stream-id"""
     api = ctx.obj["api"]
-    ret = api.get_addresses(stream_id)
+    ret = await api.get_addresses(stream_id)
     output(ret)
 
 
@@ -289,13 +284,13 @@ def get_addresses(ctx, stream_id):
     "-i", "--stream-id", type=str, help="stream_id, default is all streams"
 )
 @click.pass_context
-def get_streams(ctx, stream_id):
+async def get_streams(ctx, stream_id):
     """list one or all streams"""
     api = ctx.obj["api"]
     if stream_id is None:
-        ret = api.get_streams()
+        ret = await api.get_streams()
     else:
-        ret = api.get_stream(stream_id)
+        ret = await api.get_stream(stream_id)
     output(ret)
 
 
@@ -356,7 +351,7 @@ def get_streams(ctx, stream_id):
 @click.argument("description", type=str)
 @click.argument("tag", type=str)
 @click.pass_context
-def update_stream(
+async def update_stream(
     ctx,
     stream_id,
     webhook_url,
@@ -374,7 +369,7 @@ def update_stream(
     """update stream parameters"""
     api = ctx.obj["api"]
 
-    ret = api.update_stream(
+    ret = await api.update_stream(
         id=stream_id,
         webhook_url=webhook_url,
         description=description,
@@ -395,10 +390,10 @@ def update_stream(
 @click.argument("stream-id", type=str)
 @click.argument("status", type=click.Choice(STATUS_CHOICES))
 @click.pass_context
-def update_stream_status(ctx, stream_id, status):
+async def update_stream_status(ctx, stream_id, status):
     """update the status of a stream to active, paused, or error"""
     api = ctx.obj["api"]
-    ret = api.update_stream_status(stream_id, status)
+    ret = await api.update_stream_status(stream_id, status)
     output(ret)
 
 

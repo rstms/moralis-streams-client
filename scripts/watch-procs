@@ -1,0 +1,4 @@
+#!/bin/bash
+FILTER_PROCNAMES='svscanboot\|svscan\|/usr/sbin\|supervise\|multilog\|bash\|ssh\|init\|dbus\|qmail\|at-spi-bus\|at-spi2\|dconf-service\|tmux\|readproctitle'
+watch -n 1 "ps faxww | grep -v '$FILTER_PROCNAMES'"
+"

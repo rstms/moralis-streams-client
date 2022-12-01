@@ -21,7 +21,10 @@ coverage:
 
 ### list test cases
 testls:
-	@grep -h -R '^def test_' tests/test_*.py | awk -F'[ (]' '{print $$2}' | sort | uniq
+	@(\
+	  grep -h -R 'async def test_' tests/test_*.py | awk -F'[ (]' '{print $$3}'; \
+	  grep -h -R '^def test_' tests/test_*.py | awk -F'[ (]' '{print $$2}' \
+	) | sort | uniq
 
 
 .PHONY: tox

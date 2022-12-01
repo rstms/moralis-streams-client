@@ -1,62 +1,94 @@
-#!/usr/bin/env python
+# cli tests
 
-"""Tests for `moralis_streams_client` CLI"""
-
-import json
+import logging
+import os
 import shlex
-from traceback import print_exception
+import subprocess
 
 import pytest
-from click.testing import CliRunner
 
-import moralis_streams_client
-from moralis_streams_client import __version__
-from moralis_streams_client.cli import cli
+from moralis_streams_client.webhook import Webhook
 
-
-def test_version():
-    """Test reading version and module name"""
-    assert moralis_streams_client.__name__ == "moralis_streams_client"
-    assert __version__
-    assert isinstance(__version__, str)
+info = logging.info
 
 
 @pytest.fixture
 def run():
-    runner = CliRunner()
-
-    def _run(*args, **kwargs):
-        if len(args) == 1 and isinstance(args[0], list):
-            cmd = args[0]
-        elif len(args) > 0:
-            cmd = shlex.split(" ".join(list(args)))
+    def _run(cmd, check=True, expect_error=False):
+        if isinstance(cmd, list):
+            pass
         else:
-            raise RuntimeError(f"args unexpected: {repr(args)}")
-        expect_json = kwargs.pop("expect_json", False)
-        expect_exit_code = kwargs.pop("expect_exit_code", 0)
-        expect_exception = kwargs.pop("expect_exception", None)
-        result = runner.invoke(cli, cmd, **kwargs)
-        if result.exception:
-            if expect_exception and isinstance(
-                result.exception, expect_exception
-            ):
-                pass
+            cmd = shlex.split(cmd)
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if check:
+            if expect_error:
+                assert proc.returncode != 0, proc
             else:
-                raise result.exception from result.exception
-        else:
-            assert result.exit_code == expect_exit_code, result.output
-        if expect_json:
-            result = json.loads(result.stdout)
-        return result
+                assert proc.returncode == 0, proc
+        return proc
 
     return _run
 
 
-def test_cli_none(run):
-    result = run([])
-    assert "Usage:" in result.output
+def as_lines(string):
+    return string.strip().split("\n")
+
+
+def test_cli_no_args(run):
+    result = run("msc")
+    assert result.stdout
+    info(result.stdout)
+    assert result.stdout.startswith("Usage:")
 
 
 def test_cli_help(run):
-    result = run(["--help"])
-    assert "Show this message and exit." in result.output
+    result = run("msc", "--help")
+    assert result.stdout
+    info(result.stdout)
+
+
+async def test_cli_start_stop(run):
+    run("webhook -p 8082 ps", expect_error=True)
+    run("webhook -p 8082 -d -l DEBUG -T start")
+    run("webhook -p 8082 ps")
+    ret = run("webhook -p 8082 hello")
+    assert "Hello, Webhook!" in ret.stdout
+    await Webhook(port=8082).stop()
+    # run("webhook -p 8082 stop")
+    run("webhook -p 8082 ps", expect_error=True)
+
+
+async def test_cli_two_start_stop(run):
+    run("webhook -d -l DEBUG -T start")
+    run("webhook -p 8081 -d -l DEBUG -T start")
+
+    ret = run("webhook ps")
+    lines = as_lines(ret.stdout)
+    [info(line) for line in lines]
+    assert len(lines) == 1
+
+    ret = run("webhook -p 8081 ps")
+    lines = as_lines(ret.stdout)
+    [info(line) for line in lines]
+    assert len(lines) == 1
+
+    run("webhook ps")
+    await Webhook().stop()
+    run("webhook ps", expect_error=True)
+
+    run("webhook -p 8081 ps")
+    await Webhook(port=8081).stop()
+    run("webhook -p 8081 ps", expect_error=True)
+
+
+async def test_cli_debug_log(run, shared_datadir):
+    logfile = shared_datadir / "webhook_test.log"
+    os.environ["WEBHOOK_LOG_LEVEL"] = "DEBUG"
+    os.environ["WEBHOOK_DEBUG"] = "1"
+    os.environ["WEBHOOK_LOG_FILE"] = str(logfile)
+    run("webhook ps", expect_error=True)
+    run("webhook -T start")
+    run("webhook ps")
+    assert logfile.is_file()
+    assert logfile.stat().st_size != 0
+    await Webhook().stop()

@@ -23,7 +23,7 @@ dynamic = ["version", "description"]
 
 dependencies = [
   "asgi-logger",
-  "click",
+  "asyncclick",
   "pycryptodome",
   "eth-utils",
   "FastAPI",
@@ -31,7 +31,7 @@ dependencies = [
   "psutil",
   "pydantic",
   "pyngrok",
-  "requests",
+  "httpx",
   "starlette",
   "toml",
   "uvicorn",
@@ -55,6 +55,7 @@ dev = [
   "isort",
   "pdbpp",
   "pytest",
+  "pytest-asyncio",
   "pytest-datadir",
   "python-box",
   "ratelimit",
@@ -81,5 +82,4 @@ collect_ignore = ['setup.py']
 [project.scripts]
 msc = "moralis_streams_client.cli:cli"
 webhook = "moralis_streams_client.webhook_cli:webhook"
-
-
+webhook-server = "moralis_streams_client.server:server"

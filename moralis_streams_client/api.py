@@ -6,8 +6,8 @@ import os
 from pprint import pformat
 from typing import Dict, List
 
-import requests
-from requests.exceptions import HTTPError, JSONDecodeError
+import httpx
+from httpx import DecodingError, HTTPError
 
 from . import settings
 from .defaults import (
@@ -49,7 +49,7 @@ class MoralisStreamsApi:
         self.page_limit = page_limit
         self.row_limit = row_limit
         self.debug = debug or settings.MORALIS_STREAMS_API_DEBUG
-        self._init_region(region)
+        self.initialize_region = region
 
     def _env_flag(self, name, default=False):
         default = "1" if default else "0"
@@ -61,10 +61,13 @@ class MoralisStreamsApi:
     def __repr__(self):
         return f"{self.__class__.__name__}<{hex(id(self))}>"
 
-    def _init_region(self, region):
-        self.get_settings()
-        if self.region != region:
-            self.set_settings(region=region)
+    async def _init_region(self):
+        """one time only, if server region mismatches initialize_region, change it"""
+        if self.initialize_region is not None:
+            await self.get_settings()
+            if self.region != self.initialize_region:
+                await self.set_settings(region=self.initialize_region)
+            self.initialize_region = None
 
     def _parse_advanced_options(self, advanced_options):
         options = advanced_options or []
@@ -78,32 +81,35 @@ class MoralisStreamsApi:
             )
         return options
 
-    def _get(self, path, *, params={}, paginated=False, require_keys=[]):
+    async def _get(self, path, *, params={}, paginated=False, require_keys=[]):
 
         if paginated:
-            return self._get_paginated(path, params)
-
-        response = requests.get(
-            self.url + path, headers=self.headers, params=params
-        )
+            return await self._get_paginated(path, params)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                self.url + path, headers=self.headers, params=params
+            )
         return self._return_result(response, require_keys)
 
-    def _post(self, path, body={}):
-        response = requests.post(
-            self.url + path, headers=self.headers, json=body
-        )
+    async def _post(self, path, body={}):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self.url + path, headers=self.headers, json=body
+            )
         return self._return_result(response)
 
-    def _put(self, path, body={}):
-        response = requests.put(
-            self.url + path, headers=self.headers, json=body
-        )
+    async def _put(self, path, params={}):
+        async with httpx.AsyncClient() as client:
+            response = await client.put(
+                self.url + path, headers=self.headers, params=params
+            )
         return self._return_result(response)
 
-    def _delete(self, path, body={}):
-        response = requests.delete(
-            self.url + path, headers=self.headers, json=body
-        )
+    async def _delete(self, path, params={}):
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                self.url + path, headers=self.headers, params=params
+            )
         return self._return_result(response)
 
     def kludge(self, message):
@@ -122,7 +128,7 @@ class MoralisStreamsApi:
         errors = []
         try:
             message = response.json()
-        except JSONDecodeError as exc:
+        except DecodingError as exc:
             message = response.text
             errors.append(MoralisStreamsResponseFormatError(f"{exc}"))
 
@@ -143,19 +149,19 @@ class MoralisStreamsApi:
         if errors:
             raise MoralisStreamsResponseFormatError((message, errors))
 
-        if response.ok is False:
+        if response.is_success is False:
             raise MoralisStreamsErrorReturned((message, response.reason))
 
         return message
 
-    def _get_page(self, count, path, params, results, require_keys):
+    async def _get_page(self, count, path, params, results, require_keys):
 
         if self.debug:
             debug("----")
             debug(f"{count=}")
             debug(f"get({repr(path)},{params=})")
 
-        ret = self._get(path, params=params, require_keys=require_keys)
+        ret = await self._get(path, params=params, require_keys=require_keys)
 
         if self.debug:
             debug(f"  total={ret['total']}")
@@ -182,7 +188,7 @@ class MoralisStreamsApi:
 
         return ret, results
 
-    def _get_paginated(self, path, params={}):
+    async def _get_paginated(self, path, params={}):
         results = []
         params.setdefault("limit", self.row_limit)
         count = 0
@@ -196,7 +202,7 @@ class MoralisStreamsApi:
             else:
                 params.pop("cursor", None)
 
-            ret, results = self._get_page(
+            ret, results = await self._get_page(
                 count, path, params, results, ["total", "result"]
             )
 
@@ -254,29 +260,30 @@ class MoralisStreamsApi:
 
         return results
 
-    def get_stats(self) -> dict:
+    async def get_stats(self) -> dict:
+        self._init_region()
         debug(f"{self} get_stats()")
-        ret = self._get("/beta/stats")
+        ret = await self._get("/beta/stats")
         debug(f"{self} {ret=}")
         return ret
 
-    def get_settings(self) -> dict:
+    async def get_settings(self) -> dict:
         debug(f"{self} get_settings()")
-        settings = self._get("/settings", require_keys=["region"])
+        settings = await self._get("/settings", require_keys=["region"])
         self.region = settings["region"]
         ret = None
         debug(f"{self} {ret=}")
         return ret
 
-    def set_settings(self, region: str) -> None:
+    async def set_settings(self, region: str) -> None:
         debug(f"{self} set_settings({region=})")
-        self._post("/settings", dict(region=region))
+        await self._post("/settings", dict(region=region))
         self.region = region
         ret = None
         debug(f"{self} {ret=}")
         return ret
 
-    def create_stream(
+    async def create_stream(
         self,
         *,
         webhook_url: str,
@@ -292,6 +299,8 @@ class MoralisStreamsApi:
         chain_ids: List[str],
     ) -> dict:
 
+        await self._init_region()
+
         params = dict(
             webhookUrl=webhook_url,
             description=description,
@@ -306,55 +315,64 @@ class MoralisStreamsApi:
             chainIds=chain_ids,
         )
         debug(f"{self} create_stream({params=})")
-        ret = self._put("/streams/evm", params)
+        ret = await self._put("/streams/evm", params)
         debug(f"{self} {ret=}")
         return ret
 
-    def add_address_to_stream(self, stream_id: str, address: str) -> dict:
+    async def add_address_to_stream(
+        self, stream_id: str, address: str
+    ) -> dict:
         debug(f"{self} add_address_to_stream({stream_id=}, {address=})")
         path = f"/streams/evm/{stream_id}/address"
         params = dict(address=address)
-        ret = self._post(path, params)
+        ret = await self._post(path, params)
         debug(f"{self} {ret=}")
         return ret
 
-    def delete_address_from_stream(self, stream_id: str, address: str) -> dict:
+    async def delete_address_from_stream(
+        self, stream_id: str, address: str
+    ) -> dict:
         debug(f"{self} delete_address_from_stream({stream_id=}, {address=})")
+        await self._init_region()
         path = f"/streams/evm/{stream_id}/address"
         params = dict(address=address)
-        ret = self._delete(path, params)
+        ret = await self._delete(path, params)
         debug(f"{self} {ret=}")
         return ret
 
-    def delete_stream(self, stream_id: str) -> dict:
+    async def delete_stream(self, stream_id: str) -> dict:
         debug(f"{self} delete_stream({stream_id=})")
+        await self._init_region()
         path = f"/streams/evm/{stream_id}"
-        ret = self._delete(path)
+        ret = await self._delete(path)
         debug(f"{self} {ret=}")
         return ret
 
-    def get_addresses(self, stream_id: str) -> List[str]:
+    async def get_addresses(self, stream_id: str) -> List[str]:
         debug(f"{self} get_addresses({stream_id=})")
+        await self._init_region()
         path = f"/streams/evm/{stream_id}/address"
-        ret = self._get(path, paginated=True)
+        ret = await self._get(path, paginated=True)
         debug(f"{self} {ret=}")
         return ret
 
-    def get_stream(self, stream_id: str) -> dict:
+    async def get_stream(self, stream_id: str) -> dict:
         debug(f"{self} get_stream({stream_id=})")
+        await self._init_region()
         path = f"/streams/evm/{stream_id}"
-        ret = self._get(path)
+        ret = await self._get(path)
         debug(f"{self} {ret=}")
         return ret
 
-    def get_streams(self) -> List[Dict]:
+    async def get_streams(self) -> List[Dict]:
         debug(f"{self} get_streams()")
+        await self._init_region()
         path = "/streams/evm"
-        ret = self._get(path, paginated=True)
+        ret = await self._get(path, paginated=True)
         debug(f"{self} {ret=}")
         return ret
 
-    def update_stream(
+    async def update_stream(
         self,
         stream_id: str,
         *,
@@ -386,35 +404,39 @@ class MoralisStreamsApi:
             chainIds=chain_ids,
         )
         debug(f"{self} update_stream({stream_id=}, {params=})")
-        ret = self._post(path, params)
+        await self._init_region()
+        ret = await self._post(path, params)
         debug(f"{self} {ret=}")
         return ret
 
-    def update_stream_status(self, stream_id: str, status: str) -> dict:
+    async def update_stream_status(self, stream_id: str, status: str) -> dict:
         debug(f"{self} update_stream_status({stream_id=}, {status=})")
+        await self._init_region()
         path = f"/streams/evm/{stream_id}/status"
         params = dict(status=status)
-        ret = self._post(path, params)
+        ret = await self._post(path, params)
         debug(f"{self} {ret=}")
         return ret
 
-    def get_history(
+    async def get_history(
         self,
         exclude_payload: bool = False,
     ) -> dict:
         debug(f"{self} get_history({exclude_payload=})")
+        await self._init_region()
         path = "/history"
         if exclude_payload is True:
             params = dict(excludePayload=exclude_payload)
         else:
             params = {}
-        ret = self._get(path, params=params, paginated=True)
+        ret = await self._get(path, params=params, paginated=True)
         debug(f"{self} {ret=}")
         return ret
 
-    def replay_history(self, event_id: str) -> List[Dict]:
+    async def replay_history(self, event_id: str) -> List[Dict]:
         debug(f"{self} replay_history({event_id=})")
+        await self._init_region()
         path = f"/history/replay/{event_id}"
-        ret = self._post(path)
+        ret = await self._post(path)
         debug(f"{self} {ret=}")
         return ret
